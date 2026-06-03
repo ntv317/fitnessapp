@@ -21,7 +21,6 @@ struct ActiveTrackingView: View {
                 repsCard
                     .opacity(isResting ? 0.4 : 1.0)
                     .allowsHitTesting(!isResting)
-                prevHint
                 progressDots.padding(.top, 4)
             }
             .padding(.horizontal, 4)
@@ -56,13 +55,27 @@ struct ActiveTrackingView: View {
         .padding(.top, 4)
     }
 
+    private var weightPrev: String {
+        session.workoutState.suggestedWeight > 0
+            ? "\(Int(session.workoutState.suggestedWeight)) PREV"
+            : "WEIGHT"
+    }
+
+    private var repsPrev: String {
+        session.workoutState.suggestedReps > 0
+            ? "\(session.workoutState.suggestedReps) PREV"
+            : "COUNT"
+    }
+
     private var weightCard: some View {
-        InputCard(leftLabel: unitLabel, rightLabel: "WEIGHT") {
-            HStack(spacing: 0) {
+        InputCard(leftLabel: "Weight (\(unitLabel))", rightLabel: weightPrev) {
+            HStack(spacing: 4) {
                 CircleStepButton(icon: "minus") { weight = max(0, weight - step) }
                 Text(weightDisplay)
-                    .font(.system(size: 30, weight: .bold).monospacedDigit())
-                    .frame(minWidth: 70)
+                    .font(.system(size: 38, weight: .bold).monospacedDigit())
+                    .frame(maxWidth: .infinity)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
                     .focusable(!isResting)
                     .focused($crownFocused)
                     .digitalCrownRotation(
@@ -78,23 +91,14 @@ struct ActiveTrackingView: View {
     }
 
     private var repsCard: some View {
-        InputCard(leftLabel: "COUNT", rightLabel: "REPS") {
-            HStack(spacing: 0) {
+        InputCard(leftLabel: "Reps", rightLabel: repsPrev) {
+            HStack(spacing: 4) {
                 CircleStepButton(icon: "minus") { reps = max(1, reps - 1) }
                 Text("\(reps)")
-                    .font(.system(size: 30, weight: .bold).monospacedDigit())
-                    .frame(minWidth: 50)
+                    .font(.system(size: 38, weight: .bold).monospacedDigit())
+                    .frame(maxWidth: .infinity)
                 CircleStepButton(icon: "plus") { reps = min(99, reps + 1) }
             }
-        }
-    }
-
-    @ViewBuilder
-    private var prevHint: some View {
-        if session.workoutState.suggestedWeight > 0 {
-            Text("PREV: \(Int(session.workoutState.suggestedWeight)) \(unitLabel) × \(session.workoutState.suggestedReps)")
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundColor(.secondary)
         }
     }
 
@@ -112,14 +116,16 @@ struct ActiveTrackingView: View {
                     )
                     .foregroundColor(.white)
                 } else {
-                    Text("Log Set")
-                        .font(.system(size: 15, weight: .semibold))
+                    Text("LOG SET")
+                        .font(.system(size: 15, weight: .bold))
+                        .tracking(1.5)
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
+            .padding(.vertical, 8)
         }
         .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
         .tint(isResting ? TRAKColor.tertiary : TRAKColor.primary)
     }
 
@@ -190,10 +196,10 @@ struct CircleStepButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .medium))
-                .frame(width: 38, height: 38)
-                .background(Color.white.opacity(0.10))
-                .clipShape(Circle())
+                .font(.system(size: 18, weight: .semibold))
+                .frame(width: 44, height: 44)
+                .background(Color.white.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.borderless)
         .foregroundColor(.white)

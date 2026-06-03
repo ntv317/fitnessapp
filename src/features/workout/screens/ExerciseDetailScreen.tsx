@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
@@ -18,59 +19,143 @@ interface SetState {
   done: boolean;
 }
 
-// ── Rest timer card ──────────────────────────────────────────────────────────
+// ── Full-screen rest timer ────────────────────────────────────────────────────
 
-function RestTimerCard({
-  seconds,
+const RING_SIZE = 270;
+const RING_STROKE = 12;
+const RING_R = (RING_SIZE - RING_STROKE) / 2;
+const RING_C = 2 * Math.PI * RING_R;
+
+function RestTimerOverlay({
+  durationSeconds,
   runKey,
-  onSkip,
+  accent,
+  exerciseName,
+  setNumber,
+  totalSets,
+  nextLabel,
   onComplete,
-  color,
+  onSkip,
 }: {
-  seconds: number | null;
+  durationSeconds: number;
   runKey: number;
-  onSkip: () => void;
+  accent: string;
+  exerciseName: string;
+  setNumber: number;
+  totalSets: number;
+  nextLabel: string | null;
   onComplete: () => void;
-  color: string;
+  onSkip: () => void;
 }) {
-  const [remaining, setRemaining] = useState(seconds ?? 0);
+  const insets = useSafeAreaInsets();
+  const [remaining, setRemaining] = useState(durationSeconds);
+  const [total, setTotal] = useState(durationSeconds);
+  const endAtRef = useRef(Date.now() + durationSeconds * 1000);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const doneRef = useRef(false);
 
   useEffect(() => {
-    if (seconds == null) return;
-    setRemaining(seconds);
-    if (seconds <= 0) {
-      onCompleteRef.current();
-      return;
-    }
-    // Wall-clock based so it stays accurate even if intervals are throttled.
-    const endAt = Date.now() + seconds * 1000;
+    endAtRef.current = Date.now() + durationSeconds * 1000;
+    setTotal(durationSeconds);
+    setRemaining(durationSeconds);
+    doneRef.current = false;
     const id = setInterval(() => {
-      const rem = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      const rem = Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000));
       setRemaining(rem);
-      if (rem <= 0) {
+      if (rem <= 0 && !doneRef.current) {
+        doneRef.current = true;
         clearInterval(id);
         onCompleteRef.current();
       }
     }, 250);
     return () => clearInterval(id);
-  }, [seconds, runKey]);
+  }, [durationSeconds, runKey]);
 
+  const adjust = (delta: number) => {
+    endAtRef.current = Math.max(Date.now(), endAtRef.current + delta * 1000);
+    const rem = Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000));
+    setRemaining(rem);
+    setTotal((t) => Math.max(t, rem));
+  };
+
+  const progress = total > 0 ? remaining / total : 0;
   const mins = String(Math.floor(remaining / 60)).padStart(2, '0');
   const secs = String(remaining % 60).padStart(2, '0');
 
   return (
-    <View style={styles.timerCard}>
-      <AppText variant="labelMono" upper color={Colors.textSecondary}>Rest Timer</AppText>
-      <AppText variant="displayTimer" color={color} style={styles.timerValue}>
-        {mins}:{secs}
-      </AppText>
-      <TouchableOpacity onPress={onSkip} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-        <AppText variant="bodyMd" color={color} style={{ fontFamily: Fonts.sansBold }}>
-          Skip Rest
-        </AppText>
-      </TouchableOpacity>
+    <View style={styles.restOverlay}>
+      {/* Header */}
+      <View style={[styles.restHeader, { paddingTop: insets.top + Spacing.xs }]}>
+        <View style={styles.restHeaderLeft}>
+          <Ionicons name="timer-outline" size={20} color={accent} />
+          <AppText variant="headlineMd" color={accent} style={{ fontFamily: Fonts.sansBold }}>REST</AppText>
+        </View>
+        <TouchableOpacity onPress={onSkip} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+          <AppText variant="labelMono" upper color={Colors.textSecondary}>Cancel</AppText>
+        </TouchableOpacity>
+      </View>
+
+      {/* Ring + countdown */}
+      <View style={styles.restCenter}>
+        <View style={styles.restRingWrap}>
+          <Svg width={RING_SIZE} height={RING_SIZE} style={styles.restRing}>
+            <Circle cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_R} stroke={Colors.surfaceAlt} strokeWidth={1.5} fill="none" />
+            <Circle
+              cx={RING_SIZE / 2}
+              cy={RING_SIZE / 2}
+              r={RING_R}
+              stroke={accent}
+              strokeWidth={RING_STROKE}
+              fill="none"
+              strokeDasharray={RING_C}
+              strokeDashoffset={RING_C * (1 - progress)}
+              strokeLinecap="round"
+            />
+          </Svg>
+          <View style={styles.restCountWrap}>
+            <AppText variant="displayTimer" color={Colors.textPrimary} style={styles.restCountText}>
+              {mins}:{secs}
+            </AppText>
+            <AppText variant="labelMono" upper color={Colors.textSecondary}>Seconds Remaining</AppText>
+          </View>
+        </View>
+
+        {/* Up next */}
+        <View style={styles.restUpNext}>
+          <AppText variant="labelMono" upper color={accent} style={{ fontFamily: Fonts.sansBold }}>Up Next</AppText>
+          <AppText variant="headlineLg" center style={{ fontSize: 26, lineHeight: 30, marginTop: 2 }}>
+            {exerciseName}
+          </AppText>
+          <View style={styles.restUpNextMeta}>
+            <AppText variant="bodyMd" color={Colors.textSecondary}>Set {setNumber} of {totalSets}</AppText>
+            {nextLabel ? (
+              <>
+                <View style={styles.restDot} />
+                <AppText variant="bodyMd" style={{ fontFamily: Fonts.sansBold }}>{nextLabel}</AppText>
+              </>
+            ) : null}
+          </View>
+        </View>
+      </View>
+
+      {/* Footer */}
+      <View style={[styles.restFooter, { paddingBottom: insets.bottom + Spacing.md }]}>
+        <View style={styles.restAdjustRow}>
+          <TouchableOpacity style={styles.restAdjustBtn} onPress={() => adjust(-15)} activeOpacity={0.7}>
+            <Ionicons name="remove" size={16} color={Colors.textPrimary} />
+            <AppText variant="labelMono">15s</AppText>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.restAdjustBtn} onPress={() => adjust(15)} activeOpacity={0.7}>
+            <Ionicons name="add" size={16} color={Colors.textPrimary} />
+            <AppText variant="labelMono">15s</AppText>
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={[styles.restSkipBtn, { backgroundColor: accent }]} onPress={onSkip} activeOpacity={0.85}>
+          <AppText variant="headlineMd" color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>Skip Rest</AppText>
+          <Ionicons name="play-skip-forward" size={20} color={Colors.white} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -225,6 +310,14 @@ export default function ExerciseDetailScreen() {
   const addSet = () =>
     setSets((prev) => [...prev, { weight: '', reps: '', done: false }]);
 
+  // "Up next" info shown on the rest timer.
+  const restNextIdx = sets.findIndex((s) => !s.done);
+  const restSetNumber = restNextIdx >= 0 ? restNextIdx + 1 : sets.length;
+  const restNextLabel =
+    suggestedWeight > 0
+      ? `${Math.round(fromKg(suggestedWeight) * 10) / 10} ${unit} × ${suggestedReps}`
+      : `${suggestedReps} reps`;
+
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Top app bar */}
@@ -352,27 +445,22 @@ export default function ExerciseDetailScreen() {
           </AppText>
         </Card>
       </ScrollView>
-
-      {/* Rest overlay — blocks set input until the timer ends or the user skips */}
-      {restSeconds != null && (
-        <View style={styles.restOverlay}>
-          <RestTimerCard
-            seconds={restSeconds}
-            runKey={restKey}
-            onComplete={() => endRest(false)}
-            onSkip={() => endRest(true)}
-            color={accent}
-          />
-          <AppText
-            variant="bodyMd"
-            color={Colors.textSecondary}
-            style={{ marginTop: Spacing.md, textAlign: 'center' }}
-          >
-            Rest in progress — the next set unlocks when the timer ends.
-          </AppText>
-        </View>
-      )}
       </View>
+
+      {/* Full-screen rest timer — blocks input until it ends or the user skips */}
+      {restSeconds != null && (
+        <RestTimerOverlay
+          durationSeconds={restSeconds}
+          runKey={restKey}
+          accent={accent}
+          exerciseName={exercise?.name ?? 'Next Set'}
+          setNumber={restSetNumber}
+          totalSets={sets.length}
+          nextLabel={restNextLabel}
+          onComplete={() => endRest(false)}
+          onSkip={() => endRest(true)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -385,10 +473,51 @@ const styles = StyleSheet.create({
   content: { flex: 1 },
   restOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.background + 'F2', // ~95% opaque scrim blocks taps
+    backgroundColor: Colors.background, // fully opaque — immersive + blocks taps
+    zIndex: 20,
+  },
+  restHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: MARGIN,
+    paddingVertical: Spacing.sm,
+  },
+  restHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  restCenter: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: Spacing.xl,
     paddingHorizontal: MARGIN,
+  },
+  restRingWrap: { width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center' },
+  restRing: { position: 'absolute', transform: [{ rotate: '-90deg' }] },
+  restCountWrap: { alignItems: 'center' },
+  restCountText: { fontSize: 68, lineHeight: 72 },
+  restUpNext: { alignItems: 'center' },
+  restUpNextMeta: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.xs },
+  restDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.textMuted, marginHorizontal: 8 },
+  restFooter: { paddingHorizontal: MARGIN, gap: Spacing.md },
+  restAdjustRow: { flexDirection: 'row', gap: Spacing.md },
+  restAdjustBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.sm,
+  },
+  restSkipBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: Spacing.lg,
+    borderRadius: Radius.md,
   },
   appBar: {
     flexDirection: 'row',
