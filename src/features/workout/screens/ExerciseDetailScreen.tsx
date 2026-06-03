@@ -378,7 +378,12 @@ export default function ExerciseDetailScreen() {
           </View>
           <TouchableOpacity
             style={styles.historyBtn}
-            onPress={() => router.push('/(tabs)/history')}
+            onPress={() =>
+              router.push({
+                pathname: '/(tabs)/history',
+                params: { exerciseId: String(exerciseId) },
+              })
+            }
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons name="time-outline" size={18} color={Colors.textSecondary} />

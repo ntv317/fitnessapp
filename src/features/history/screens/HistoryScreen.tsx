@@ -11,6 +11,7 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { WEEKLY_PLAN } from '@/core/config/workoutPlan';
@@ -456,10 +457,20 @@ export default function HistoryScreen() {
   const { data: exercises = [] } = useExercises();
   const { mutate: deleteLog } = useDeleteLog();
 
+  // Opening History from an exercise pre-filters to that exercise.
+  const routeParams = useLocalSearchParams<{ exerciseId?: string }>();
+
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
   const [collapsedWorkouts, setCollapsedWorkouts] = useState<Set<string>>(new Set());
   const [dateFilter, setDateFilter] = useState<DateFilter>({ type: 'all' });
-  const [exerciseId, setExerciseId] = useState<number | null>(null);
+  const [exerciseId, setExerciseId] = useState<number | null>(
+    routeParams.exerciseId ? Number(routeParams.exerciseId) : null,
+  );
+
+  // Re-apply when navigated here with a (new) exerciseId param.
+  useEffect(() => {
+    if (routeParams.exerciseId) setExerciseId(Number(routeParams.exerciseId));
+  }, [routeParams.exerciseId]);
   const [showDateModal, setShowDateModal] = useState(false);
   const [showExModal, setShowExModal] = useState(false);
 
