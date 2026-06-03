@@ -6,7 +6,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
-    "scheme": "fitnessapp",
+    "scheme": "trakfitness",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",

@@ -1,15 +1,18 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import WatchSync from '../../../../modules/watch-sync';
 
 /**
  * Apple Watch sync bridge.
  *
- * The companion watchOS app mirrors the active set and receives rest-timer
- * events; in return it can log a set from the wrist. Wiring that up requires a
- * native watch-connectivity module (WCSession), which is not part of this Expo
- * managed build yet — so this hook is a typed no-op that preserves the call
- * sites. When the native module lands, replace the bodies below with real
- * `sendMessage` / `applicationContext` calls and invoke `onSetLogged` from the
- * incoming-message listener.
+ * The companion watchOS app (TRAKWatch) mirrors the active set and rest timer,
+ * and can log a set from the wrist. This hook talks to the native `WatchSync`
+ * module (WatchConnectivity / WCSession):
+ *   - `sendWorkoutState` pushes the current set/rest snapshot to the watch.
+ *   - `sendMessage` sends one-off events (e.g. { type: 'skipRest' }).
+ *   - `onSetLogged` fires when the watch logs a set from the wrist.
+ *
+ * If the native module isn't available (Android, or a build without it), the
+ * module is null and every call is a safe no-op.
  */
 
 export interface WatchWorkoutState {
@@ -38,13 +41,27 @@ interface UseWatchSyncOptions {
   onSetLogged?: (payload: WatchSetLogged) => void | Promise<void>;
 }
 
-export function useWatchSync(_options: UseWatchSyncOptions = {}) {
-  const sendWorkoutState = useCallback((_state: WatchWorkoutState) => {
-    // no-op until native WCSession bridge is available
+export function useWatchSync(options: UseWatchSyncOptions = {}) {
+  const { onSetLogged } = options;
+
+  // Keep the latest callback in a ref so the listener doesn't churn.
+  const onSetLoggedRef = useRef(onSetLogged);
+  onSetLoggedRef.current = onSetLogged;
+
+  useEffect(() => {
+    if (!WatchSync) return;
+    const sub = WatchSync.addListener('onSetLogged', (payload: WatchSetLogged) => {
+      onSetLoggedRef.current?.(payload);
+    });
+    return () => sub.remove();
   }, []);
 
-  const sendMessage = useCallback((_message: WatchMessage) => {
-    // no-op until native WCSession bridge is available
+  const sendWorkoutState = useCallback((state: WatchWorkoutState) => {
+    WatchSync?.updateState(state as unknown as Record<string, unknown>);
+  }, []);
+
+  const sendMessage = useCallback((message: WatchMessage) => {
+    WatchSync?.sendMessage(message as Record<string, unknown>);
   }, []);
 
   return { sendWorkoutState, sendMessage };

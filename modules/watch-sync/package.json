@@ -1,0 +1,7 @@
+{
+  "name": "watch-sync",
+  "version": "1.0.0",
+  "description": "WatchConnectivity bridge between the iOS app and TRAKWatch",
+  "main": "index.ts",
+  "license": "MIT"
+}
