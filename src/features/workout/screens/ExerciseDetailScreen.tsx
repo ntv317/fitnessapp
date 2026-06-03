@@ -24,27 +24,36 @@ function RestTimerCard({
   seconds,
   runKey,
   onSkip,
+  onComplete,
   color,
 }: {
   seconds: number | null;
   runKey: number;
   onSkip: () => void;
+  onComplete: () => void;
   color: string;
 }) {
-  const [remaining, setRemaining] = useState(0);
+  const [remaining, setRemaining] = useState(seconds ?? 0);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     if (seconds == null) return;
     setRemaining(seconds);
+    if (seconds <= 0) {
+      onCompleteRef.current();
+      return;
+    }
+    // Wall-clock based so it stays accurate even if intervals are throttled.
+    const endAt = Date.now() + seconds * 1000;
     const id = setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          clearInterval(id);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
+      const rem = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      setRemaining(rem);
+      if (rem <= 0) {
+        clearInterval(id);
+        onCompleteRef.current();
+      }
+    }, 250);
     return () => clearInterval(id);
   }, [seconds, runKey]);
 
@@ -197,6 +206,17 @@ export default function ExerciseDetailScreen() {
     [completeSet, toKg],
   );
 
+  // Ends the rest period (timer elapsed or user skipped) and unlocks the next
+  // set. Tells the watch to leave its rest state too.
+  const endRest = useCallback(
+    (skipped = false) => {
+      setRestSeconds(null);
+      if (skipped) sendMessage({ type: 'skipRest' });
+      pushWatchState(setsRef.current, false, 0);
+    },
+    [sendMessage, pushWatchState],
+  );
+
   const updateField = (index: number, field: 'weight' | 'reps', value: string) =>
     setSets((prev) =>
       prev.map((s, i) => (i === index ? { ...s, [field]: value, done: false } : s)),
@@ -228,18 +248,8 @@ export default function ExerciseDetailScreen() {
         </TouchableOpacity>
       </View>
 
+      <View style={styles.content}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        {/* Rest timer */}
-        <RestTimerCard
-          seconds={restSeconds}
-          runKey={restKey}
-          onSkip={() => {
-            setRestSeconds(null);
-            sendMessage({ type: 'skipRest' });
-          }}
-          color={accent}
-        />
-
         {/* Exercise header */}
         <View style={styles.exHeader}>
           <View style={{ flex: 1 }}>
@@ -342,6 +352,27 @@ export default function ExerciseDetailScreen() {
           </AppText>
         </Card>
       </ScrollView>
+
+      {/* Rest overlay — blocks set input until the timer ends or the user skips */}
+      {restSeconds != null && (
+        <View style={styles.restOverlay}>
+          <RestTimerCard
+            seconds={restSeconds}
+            runKey={restKey}
+            onComplete={() => endRest(false)}
+            onSkip={() => endRest(true)}
+            color={accent}
+          />
+          <AppText
+            variant="bodyMd"
+            color={Colors.textSecondary}
+            style={{ marginTop: Spacing.md, textAlign: 'center' }}
+          >
+            Rest in progress — the next set unlocks when the timer ends.
+          </AppText>
+        </View>
+      )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -351,6 +382,14 @@ const COL_DONE = 48;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  content: { flex: 1 },
+  restOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.background + 'F2', // ~95% opaque scrim blocks taps
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: MARGIN,
+  },
   appBar: {
     flexDirection: 'row',
     alignItems: 'center',
