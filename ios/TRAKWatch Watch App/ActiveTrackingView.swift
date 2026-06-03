@@ -15,16 +15,22 @@ struct ActiveTrackingView: View {
     // only handles active input — a single fitted, non-scrolling layout that
     // adapts to the watch height via the flexible Spacer.
     var body: some View {
-        VStack(spacing: 6) {
-            header
-            weightCard
-            repsCard
-            Spacer(minLength: 2)
+        // Cards scroll (so they fit any watch size / Dynamic Type) while the
+        // Log Set button stays docked at the bottom, always tappable.
+        VStack(spacing: 4) {
+            ScrollView {
+                VStack(spacing: 6) {
+                    header
+                    weightCard
+                    repsCard
+                }
+                .padding(.horizontal, 4)
+                .padding(.bottom, 4)
+            }
             logButton
+                .padding(.horizontal, 4)
+                .padding(.bottom, 2)
         }
-        .padding(.horizontal, 4)
-        .padding(.top, 18) // clear the system time in the top-right
-        .padding(.bottom, 2)
         .onAppear(perform: resetToSuggested)
         .onChange(of: session.workoutState.exerciseName) { _ in resetToSuggested() }
         .onChange(of: session.workoutState.setNumber)    { _ in resetToSuggested() }
