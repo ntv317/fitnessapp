@@ -107,15 +107,15 @@ function DayCard({
 
       <TouchableOpacity style={styles.cardHead} onPress={onToggle} activeOpacity={0.7}>
         <View style={{ flex: 1 }}>
-          <View style={styles.catRow}>
-            <AppText variant="labelMono" upper color={color}>{musclesFor(dayTag)}</AppText>
+          <AppText variant="labelMono" upper color={color}>{musclesFor(dayTag)}</AppText>
+          <View style={styles.nameRow}>
+            <AppText variant="headlineMd">{dayTag}</AppText>
             {isToday && (
               <View style={[styles.todayPill, { backgroundColor: color }]}>
                 <AppText variant="labelMono" upper color={Colors.white} style={{ fontSize: 10 }}>Today</AppText>
               </View>
             )}
           </View>
-          <AppText variant="headlineMd" style={{ marginTop: 2 }}>{dayTag}</AppText>
         </View>
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.textSecondary} />
       </TouchableOpacity>
@@ -303,6 +303,7 @@ const styles = StyleSheet.create({
   accentBar: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start' },
   catRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 2 },
   todayPill: { borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2 },
 
   metaRow: { flexDirection: 'row', gap: Spacing.lg, marginTop: Spacing.md },
