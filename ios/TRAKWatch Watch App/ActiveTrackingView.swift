@@ -15,21 +15,18 @@ struct ActiveTrackingView: View {
     // only handles active input — a single fitted, non-scrolling layout that
     // adapts to the watch height via the flexible Spacer.
     var body: some View {
-        // Cards scroll (so they fit any watch size / Dynamic Type) while the
-        // Log Set button stays docked at the bottom, always tappable.
-        VStack(spacing: 4) {
-            ScrollView {
-                VStack(spacing: 6) {
-                    header
-                    weightCard
-                    repsCard
-                }
-                .padding(.horizontal, 4)
-                .padding(.bottom, 4)
+        // One ScrollView holds everything: with the compact sizing it all fits on
+        // larger watches (no scroll); on small watches it scrolls. The Log Set
+        // button is the last item so it's always reachable.
+        ScrollView {
+            VStack(spacing: 6) {
+                header
+                weightCard
+                repsCard
+                logButton.padding(.top, 2)
             }
-            logButton
-                .padding(.horizontal, 4)
-                .padding(.bottom, 2)
+            .padding(.horizontal, 4)
+            .padding(.bottom, 6)
         }
         .onAppear(perform: resetToSuggested)
         .onChange(of: session.workoutState.exerciseName) { _ in resetToSuggested() }
@@ -77,9 +74,8 @@ struct ActiveTrackingView: View {
             HStack(spacing: 4) {
                 CircleStepButton(icon: "minus") { weight = max(0, weight - step) }
                 Text(weightDisplay)
-                    .font(.system(size: 34, weight: .bold).monospacedDigit())
+                    .font(.system(size: 26, weight: .bold).monospacedDigit())
                     .frame(maxWidth: .infinity)
-                    .minimumScaleFactor(0.6)
                     .lineLimit(1)
                     .focusable(!isResting)
                     .focused($crownFocused)
@@ -100,9 +96,8 @@ struct ActiveTrackingView: View {
             HStack(spacing: 4) {
                 CircleStepButton(icon: "minus") { reps = max(1, reps - 1) }
                 Text("\(reps)")
-                    .font(.system(size: 34, weight: .bold).monospacedDigit())
+                    .font(.system(size: 26, weight: .bold).monospacedDigit())
                     .frame(maxWidth: .infinity)
-                    .minimumScaleFactor(0.6)
                     .lineLimit(1)
                 CircleStepButton(icon: "plus") { reps = min(99, reps + 1) }
             }
@@ -178,7 +173,7 @@ struct InputCard<Content: View>: View {
             .padding(.horizontal, 8)
             content()
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, 3)
         .background(TRAKColor.cardBg)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(TRAKColor.cardBorder, lineWidth: 1))
         .cornerRadius(12)
@@ -192,10 +187,10 @@ struct CircleStepButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 18, weight: .semibold))
-                .frame(width: 44, height: 44)
+                .font(.system(size: 16, weight: .semibold))
+                .frame(width: 36, height: 36)
                 .background(Color.white.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
         .buttonStyle(.borderless)
         .foregroundColor(.white)
