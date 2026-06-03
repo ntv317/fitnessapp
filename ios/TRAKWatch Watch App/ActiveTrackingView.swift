@@ -19,14 +19,14 @@ struct ActiveTrackingView: View {
         // larger watches (no scroll); on small watches it scrolls. The Log Set
         // button is the last item so it's always reachable.
         ScrollView {
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 header
                 weightCard
                 repsCard
                 logButton.padding(.top, 2)
             }
             .padding(.horizontal, 4)
-            .padding(.bottom, 6)
+            .padding(.bottom, 2)
         }
         .onAppear(perform: resetToSuggested)
         .onChange(of: session.workoutState.exerciseName) { _ in resetToSuggested() }
@@ -124,7 +124,7 @@ struct ActiveTrackingView: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
+            .padding(.vertical, 6)
         }
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
@@ -164,7 +164,7 @@ struct InputCard<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             HStack {
                 Text(leftLabel); Spacer(); Text(rightLabel)
             }
@@ -173,7 +173,7 @@ struct InputCard<Content: View>: View {
             .padding(.horizontal, 8)
             content()
         }
-        .padding(.vertical, 3)
+        .padding(.vertical, 2)
         .background(TRAKColor.cardBg)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(TRAKColor.cardBorder, lineWidth: 1))
         .cornerRadius(12)
