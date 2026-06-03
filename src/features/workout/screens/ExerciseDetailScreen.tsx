@@ -7,7 +7,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText, Card, StepperInput } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
-import { useExercises } from '../hooks/useExercises';
+import { useExercises, useAllDays } from '../hooks/useExercises';
 import { useAutoSaveSet, useWorkoutLogs } from '../hooks/useWorkoutLogs';
 import { useWatchSync, type WatchSetLogged } from '../hooks/useWatchSync';
 import { ProgressChart } from '@/features/history/components/ProgressChart';
@@ -30,20 +30,16 @@ function RestTimerOverlay({
   durationSeconds,
   runKey,
   accent,
-  exerciseName,
-  setNumber,
-  totalSets,
-  nextLabel,
+  upNextTitle,
+  upNextSub,
   onComplete,
   onSkip,
 }: {
   durationSeconds: number;
   runKey: number;
   accent: string;
-  exerciseName: string;
-  setNumber: number;
-  totalSets: number;
-  nextLabel: string | null;
+  upNextTitle: string;
+  upNextSub: string;
   onComplete: () => void;
   onSkip: () => void;
 }) {
@@ -125,17 +121,11 @@ function RestTimerOverlay({
         <View style={styles.restUpNext}>
           <AppText variant="labelMono" upper color={accent} style={{ fontFamily: Fonts.sansBold }}>Up Next</AppText>
           <AppText variant="headlineLg" center style={{ fontSize: 26, lineHeight: 30, marginTop: 2 }}>
-            {exerciseName}
+            {upNextTitle}
           </AppText>
-          <View style={styles.restUpNextMeta}>
-            <AppText variant="bodyMd" color={Colors.textSecondary}>Set {setNumber} of {totalSets}</AppText>
-            {nextLabel ? (
-              <>
-                <View style={styles.restDot} />
-                <AppText variant="bodyMd" style={{ fontFamily: Fonts.sansBold }}>{nextLabel}</AppText>
-              </>
-            ) : null}
-          </View>
+          <AppText variant="bodyMd" color={Colors.textSecondary} style={{ marginTop: 2 }}>
+            {upNextSub}
+          </AppText>
         </View>
       </View>
 
@@ -164,7 +154,7 @@ function RestTimerOverlay({
 
 export default function ExerciseDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string; color?: string }>();
+  const params = useLocalSearchParams<{ id: string; color?: string; day?: string }>();
   const exerciseId = Number(params.id);
   const accent = params.color ?? Colors.primary;
 
@@ -172,7 +162,14 @@ export default function ExerciseDetailScreen() {
   const saveSet = useAutoSaveSet();
   const { data: exercises = [] } = useExercises();
   const { data: history = [] } = useWorkoutLogs(exerciseId);
+  const { data: allDays = [] } = useAllDays();
   const exercise = exercises.find((e) => e.id === exerciseId);
+
+  // The next exercise in this day's plan (for auto-advance after the last set).
+  const dayExercises = allDays.find((d) => d.dayTag === params.day)?.exercises ?? [];
+  const curIdx = dayExercises.findIndex((e) => e.id === exerciseId);
+  const nextExercise =
+    curIdx >= 0 && curIdx < dayExercises.length - 1 ? dayExercises[curIdx + 1] : null;
 
   const [sets, setSets] = useState<SetState[]>(
     Array.from({ length: 3 }, () => ({ weight: '', reps: '', done: false })),
@@ -188,9 +185,11 @@ export default function ExerciseDetailScreen() {
   // pushWatchState/rest state exist). We route through a ref so the native
   // listener can call into that later-defined logic without a TDZ error.
   const handleWatchSetRef = useRef<(p: WatchSetLogged) => void>(() => {});
+  const handleSkipRef = useRef<() => void>(() => {});
 
   const { sendWorkoutState, sendMessage } = useWatchSync({
     onSetLogged: useCallback((p: WatchSetLogged) => handleWatchSetRef.current(p), []),
+    onSkipRest: useCallback(() => handleSkipRef.current(), []),
   });
 
   // Once the exercise loads, size the table to its planned set count — but only
@@ -291,16 +290,32 @@ export default function ExerciseDetailScreen() {
     [completeSet, toKg],
   );
 
-  // Ends the rest period (timer elapsed or user skipped) and unlocks the next
-  // set. Tells the watch to leave its rest state too.
+  // Ends the rest period (timer elapsed or user skipped). If every set is done,
+  // advances to the next exercise in the day (or leaves if it was the last);
+  // otherwise just unlocks the next set. Keeps the watch in sync.
   const endRest = useCallback(
     (skipped = false) => {
       setRestSeconds(null);
       if (skipped) sendMessage({ type: 'skipRest' });
       pushWatchState(setsRef.current, false, 0);
+
+      const allDone = setsRef.current.length > 0 && setsRef.current.every((s) => s.done);
+      if (allDone) {
+        if (nextExercise) {
+          router.replace({
+            pathname: '/exercise/[id]',
+            params: { id: String(nextExercise.id), color: accent, day: params.day ?? '' },
+          } as never);
+        } else {
+          router.back(); // last exercise of the day — return to the plan
+        }
+      }
     },
-    [sendMessage, pushWatchState],
+    [sendMessage, pushWatchState, nextExercise, router, accent, params.day],
   );
+
+  // Watch "Skip Rest" routes here once endRest exists.
+  handleSkipRef.current = () => endRest(false);
 
   const updateField = (index: number, field: 'weight' | 'reps', value: string) =>
     setSets((prev) =>
@@ -310,13 +325,21 @@ export default function ExerciseDetailScreen() {
   const addSet = () =>
     setSets((prev) => [...prev, { weight: '', reps: '', done: false }]);
 
-  // "Up next" info shown on the rest timer.
+  // "Up next" shown on the rest timer: the next set, or the next exercise once
+  // every set in this exercise is done.
+  const restAllDone = sets.length > 0 && sets.every((s) => s.done);
   const restNextIdx = sets.findIndex((s) => !s.done);
-  const restSetNumber = restNextIdx >= 0 ? restNextIdx + 1 : sets.length;
-  const restNextLabel =
-    suggestedWeight > 0
-      ? `${Math.round(fromKg(suggestedWeight) * 10) / 10} ${unit} × ${suggestedReps}`
-      : `${suggestedReps} reps`;
+  const restUpTitle = restAllDone
+    ? nextExercise?.name ?? 'Workout Complete'
+    : exercise?.name ?? 'Next Set';
+  const restUpSub = restAllDone
+    ? nextExercise
+      ? 'Next exercise'
+      : 'Great work — day done!'
+    : `Set ${restNextIdx + 1} of ${sets.length}` +
+      (suggestedWeight > 0
+        ? ` • ${Math.round(fromKg(suggestedWeight) * 10) / 10} ${unit} × ${suggestedReps}`
+        : '');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -453,10 +476,8 @@ export default function ExerciseDetailScreen() {
           durationSeconds={restSeconds}
           runKey={restKey}
           accent={accent}
-          exerciseName={exercise?.name ?? 'Next Set'}
-          setNumber={restSetNumber}
-          totalSets={sets.length}
-          nextLabel={restNextLabel}
+          upNextTitle={restUpTitle}
+          upNextSub={restUpSub}
           onComplete={() => endRest(false)}
           onSkip={() => endRest(true)}
         />

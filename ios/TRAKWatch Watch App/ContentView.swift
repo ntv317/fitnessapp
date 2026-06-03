@@ -11,10 +11,13 @@ struct ContentView: View {
                 SummaryView()
             } else if session.workoutState.exerciseName.isEmpty {
                 IdleView()
+            } else if session.workoutState.isResting {
+                RestView()
             } else {
                 ActiveTrackingView()
             }
         }
         .animation(.easeInOut(duration: 0.25), value: session.workoutState.isWorkoutComplete)
+        .animation(.easeInOut(duration: 0.2), value: session.workoutState.isResting)
     }
 }

@@ -41,21 +41,31 @@ export interface WatchMessage {
 
 interface UseWatchSyncOptions {
   onSetLogged?: (payload: WatchSetLogged) => void | Promise<void>;
+  /** Fired when the user skips rest from the watch. */
+  onSkipRest?: () => void;
 }
 
 export function useWatchSync(options: UseWatchSyncOptions = {}) {
-  const { onSetLogged } = options;
+  const { onSetLogged, onSkipRest } = options;
 
-  // Keep the latest callback in a ref so the listener doesn't churn.
+  // Keep the latest callbacks in refs so the listeners don't churn.
   const onSetLoggedRef = useRef(onSetLogged);
   onSetLoggedRef.current = onSetLogged;
+  const onSkipRestRef = useRef(onSkipRest);
+  onSkipRestRef.current = onSkipRest;
 
   useEffect(() => {
     if (!WatchSync) return;
-    const sub = WatchSync.addListener('onSetLogged', (payload: WatchSetLogged) => {
+    const setSub = WatchSync.addListener('onSetLogged', (payload: WatchSetLogged) => {
       onSetLoggedRef.current?.(payload);
     });
-    return () => sub.remove();
+    const skipSub = WatchSync.addListener('onSkipRest', () => {
+      onSkipRestRef.current?.();
+    });
+    return () => {
+      setSub.remove();
+      skipSub.remove();
+    };
   }, []);
 
   const sendWorkoutState = useCallback((state: WatchWorkoutState) => {

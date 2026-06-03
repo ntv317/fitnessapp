@@ -7,7 +7,7 @@ public class WatchSyncModule: Module {
   public func definition() -> ModuleDefinition {
     Name("WatchSync")
 
-    Events("onSetLogged", "onFinishWorkout")
+    Events("onSetLogged", "onFinishWorkout", "onSkipRest")
 
     OnCreate {
       self.session.onEvent = { [weak self] name, payload in
@@ -77,6 +77,8 @@ final class WatchSessionHandler: NSObject, WCSessionDelegate {
       ])
     case "finishWorkout":
       onEvent?("onFinishWorkout", [:])
+    case "skipRest":
+      onEvent?("onSkipRest", [:])
     default:
       break
     }

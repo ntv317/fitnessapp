@@ -15,6 +15,7 @@ export interface WatchSyncNativeModule {
     listener: (payload: WatchSetLoggedPayload) => void,
   ): { remove: () => void };
   addListener(event: 'onFinishWorkout', listener: () => void): { remove: () => void };
+  addListener(event: 'onSkipRest', listener: () => void): { remove: () => void };
 }
 
 // Optional: returns null on platforms/builds where the native module isn't present

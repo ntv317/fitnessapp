@@ -67,6 +67,17 @@ class WatchSessionManager: NSObject, ObservableObject {
         }
     }
 
+    /// Skip initiated on the watch — also tell the phone so both timers end together.
+    func userSkipRest() {
+        let payload: [String: Any] = ["type": "skipRest"]
+        if WCSession.default.isReachable {
+            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+        } else {
+            WCSession.default.transferUserInfo(payload)
+        }
+        skipRest()
+    }
+
     // MARK: - Private
 
     private func applyUpdate(_ dict: [String: Any]) {
