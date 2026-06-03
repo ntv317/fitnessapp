@@ -90,26 +90,13 @@ export default function ExerciseDetailScreen() {
   const setsRef = useRef(sets);
   setsRef.current = sets;
 
-  const { sendWorkoutState, sendMessage } = useWatchSync({
-    onSetLogged: useCallback(async ({ reps, weight: weightKg, setOrder }: WatchSetLogged) => {
-      // Find the target row: prefer the setOrder index, fall back to next undone
-      const idx = setOrder - 1;
-      const current = setsRef.current;
-      const targetIdx = idx >= 0 && idx < current.length && !current[idx].done
-        ? idx
-        : current.findIndex((s) => !s.done);
-      if (targetIdx < 0) return;
+  // Sets logged from the wrist are handled by `completeSet` (defined below, once
+  // pushWatchState/rest state exist). We route through a ref so the native
+  // listener can call into that later-defined logic without a TDZ error.
+  const handleWatchSetRef = useRef<(p: WatchSetLogged) => void>(() => {});
 
-      const displayWeight = String(Math.round(fromKg(weightKg) * 10) / 10);
-      setSets((prev) =>
-        prev.map((s, i) =>
-          i === targetIdx ? { weight: displayWeight, reps: String(reps), done: true } : s,
-        ),
-      );
-      try {
-        await saveSet(exerciseId, targetIdx + 1, reps, weightKg);
-      } catch { /* ignore */ }
-    }, [exerciseId, saveSet, fromKg]),
+  const { sendWorkoutState, sendMessage } = useWatchSync({
+    onSetLogged: useCallback((p: WatchSetLogged) => handleWatchSetRef.current(p), []),
   });
 
   // Once the exercise loads, size the table to its planned set count — but only
@@ -161,27 +148,50 @@ export default function ExerciseDetailScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise?.id]);
 
-  const toggleDone = useCallback(
-    async (index: number) => {
-      const s = sets[index];
-      if (s.done) return;
-      const reps = parseInt(s.reps, 10);
-      const typed = parseFloat(s.weight) || 0;
-      if (!reps) return;
-
-      const updatedSets = sets.map((r, i) => (i === index ? { ...r, done: true } : r));
+  // Single source of truth for completing a set — used by both the on-screen
+  // "done" checkbox and sets logged from the watch. Marks the row done, persists
+  // it, starts the rest timer on the phone, and pushes the new state (with the
+  // advanced set number + isResting) to the watch so its countdown begins.
+  const completeSet = useCallback(
+    (index: number, repsNum: number, weightKg: number) => {
+      if (!repsNum) return;
+      const display = String(Math.round(fromKg(weightKg) * 10) / 10);
+      const updatedSets = setsRef.current.map((r, i) =>
+        i === index ? { weight: display, reps: String(repsNum), done: true } : r,
+      );
       setSets(updatedSets);
-      try {
-        await saveSet(exerciseId, index + 1, reps, toKg(typed));
-      } catch {
-        /* ignore */
-      }
+      saveSet(exerciseId, index + 1, repsNum, weightKg).catch(() => {});
       const rest = exercise?.isCompound ? 150 : 75;
       setRestSeconds(rest);
       setRestKey((k) => k + 1);
       pushWatchState(updatedSets, true, rest);
     },
-    [sets, exerciseId, exercise, saveSet, toKg, pushWatchState],
+    [exerciseId, exercise, saveSet, fromKg, pushWatchState],
+  );
+
+  // Wire the watch handler now that completeSet exists. Reassigned each render
+  // so it always closes over the latest completeSet.
+  handleWatchSetRef.current = ({ reps, weight: weightKg, setOrder }: WatchSetLogged) => {
+    const current = setsRef.current;
+    const idx = setOrder - 1;
+    const targetIdx =
+      idx >= 0 && idx < current.length && !current[idx].done
+        ? idx
+        : current.findIndex((s) => !s.done);
+    if (targetIdx < 0) return;
+    completeSet(targetIdx, reps, weightKg);
+  };
+
+  const toggleDone = useCallback(
+    (index: number) => {
+      const s = setsRef.current[index];
+      if (s.done) return;
+      const reps = parseInt(s.reps, 10);
+      const typed = parseFloat(s.weight) || 0;
+      if (!reps) return;
+      completeSet(index, reps, toKg(typed));
+    },
+    [completeSet, toKg],
   );
 
   const updateField = (index: number, field: 'weight' | 'reps', value: string) =>
