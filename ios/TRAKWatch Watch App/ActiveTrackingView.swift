@@ -28,6 +28,14 @@ struct ActiveTrackingView: View {
         .onAppear(perform: resetToSuggested)
         .onChange(of: session.workoutState.exerciseName) { _ in resetToSuggested() }
         .onChange(of: session.workoutState.setNumber)    { _ in resetToSuggested() }
+        // Keep the shown value in step with the previous-session (PREV) value
+        // whenever it changes, so the display never drifts from the hint.
+        .onChange(of: session.workoutState.suggestedWeight) { _ in
+            weight = session.workoutState.suggestedWeight
+        }
+        .onChange(of: session.workoutState.suggestedReps) { _ in
+            reps = session.workoutState.suggestedReps
+        }
     }
 
     // MARK: - Subviews
@@ -88,6 +96,8 @@ struct ActiveTrackingView: View {
                 Text("\(reps)")
                     .font(.system(size: 34, weight: .bold).monospacedDigit())
                     .frame(maxWidth: .infinity)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
                 CircleStepButton(icon: "plus") { reps = min(99, reps + 1) }
             }
         }

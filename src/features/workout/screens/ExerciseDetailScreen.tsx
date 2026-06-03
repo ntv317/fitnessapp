@@ -181,6 +181,9 @@ export default function ExerciseDetailScreen() {
   const setsRef = useRef(sets);
   setsRef.current = sets;
 
+  // Becomes true once the user types/steps/logs, so auto pre-fill stops.
+  const touchedRef = useRef(false);
+
   // Sets logged from the wrist are handled by `completeSet` (defined below, once
   // pushWatchState/rest state exist). We route through a ref so the native
   // listener can call into that later-defined logic without a TDZ error.
@@ -191,18 +194,6 @@ export default function ExerciseDetailScreen() {
     onSetLogged: useCallback((p: WatchSetLogged) => handleWatchSetRef.current(p), []),
     onSkipRest: useCallback(() => handleSkipRef.current(), []),
   });
-
-  // Once the exercise loads, size the table to its planned set count — but only
-  // while the table is still pristine, so we never clobber user input.
-  const sizedRef = useRef(false);
-  useEffect(() => {
-    if (sizedRef.current || !exercise) return;
-    sizedRef.current = true;
-    const n = exercise.targetSets > 0 ? exercise.targetSets : 3;
-    if (n !== 3) {
-      setSets(Array.from({ length: n }, () => ({ weight: '', reps: '', done: false })));
-    }
-  }, [exercise]);
 
   const weightStep = unit === 'kg' ? 2.5 : 5;
 
@@ -215,6 +206,17 @@ export default function ExerciseDetailScreen() {
     ? Math.max(...lastSession.sets.map((s) => s.weight), 0)
     : 0;
   const suggestedReps = lastSession?.sets[0]?.reps ?? 10;
+
+  // Size the table to the planned set count AND pre-fill each row with the last
+  // session's weight/reps, so the screen opens on your previous numbers (not 0).
+  // Re-runs as history settles — until the user types/steps/logs anything.
+  useEffect(() => {
+    if (touchedRef.current || !exercise) return;
+    const n = exercise.targetSets > 0 ? exercise.targetSets : 3;
+    const w = suggestedWeight > 0 ? String(Math.round(fromKg(suggestedWeight) * 10) / 10) : '';
+    const r = suggestedReps > 0 ? String(suggestedReps) : '';
+    setSets(Array.from({ length: n }, () => ({ weight: w, reps: r, done: false })));
+  }, [exercise, suggestedWeight, suggestedReps, fromKg]);
 
   const pushWatchState = useCallback(
     (updatedSets: SetState[], isResting: boolean, restDuration: number) => {
@@ -250,6 +252,7 @@ export default function ExerciseDetailScreen() {
   const completeSet = useCallback(
     (index: number, repsNum: number, weightKg: number) => {
       if (!repsNum) return;
+      touchedRef.current = true;
       const display = String(Math.round(fromKg(weightKg) * 10) / 10);
       const updatedSets = setsRef.current.map((r, i) =>
         i === index ? { weight: display, reps: String(repsNum), done: true } : r,
@@ -317,10 +320,12 @@ export default function ExerciseDetailScreen() {
   // Watch "Skip Rest" routes here once endRest exists.
   handleSkipRef.current = () => endRest(false);
 
-  const updateField = (index: number, field: 'weight' | 'reps', value: string) =>
+  const updateField = (index: number, field: 'weight' | 'reps', value: string) => {
+    touchedRef.current = true;
     setSets((prev) =>
       prev.map((s, i) => (i === index ? { ...s, [field]: value, done: false } : s)),
     );
+  };
 
   const addSet = () =>
     setSets((prev) => [...prev, { weight: '', reps: '', done: false }]);
