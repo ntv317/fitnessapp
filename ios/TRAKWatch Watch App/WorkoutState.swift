@@ -12,6 +12,8 @@ struct WorkoutState {
     var totalVolume: Double = 0
     var elapsedMinutes: Int = 0
     var workoutName: String = ""
+    var unit: String = "kg"          // weight unit mirrored from the phone
+    var weightStep: Double = 2.5     // increment for +/- and the Digital Crown
 
     mutating func update(from dict: [String: Any]) {
         if let v = dict["exerciseName"] as? String { exerciseName = v }
@@ -25,5 +27,7 @@ struct WorkoutState {
         if let v = dict["totalVolume"] as? Double { totalVolume = v }
         if let v = dict["elapsedMinutes"] as? Int { elapsedMinutes = v }
         if let v = dict["workoutName"] as? String { workoutName = v }
+        if let v = dict["unit"] as? String { unit = v }
+        if let v = dict["weightStep"] as? Double { weightStep = v }
     }
 }

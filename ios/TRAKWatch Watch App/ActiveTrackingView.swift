@@ -8,6 +8,8 @@ struct ActiveTrackingView: View {
     @FocusState private var crownFocused: Bool
 
     private var isResting: Bool { session.workoutState.isResting }
+    private var step: Double { max(0.5, session.workoutState.weightStep) }
+    private var unitLabel: String { session.workoutState.unit.uppercased() }
 
     var body: some View {
         ScrollView {
@@ -20,11 +22,16 @@ struct ActiveTrackingView: View {
                     .opacity(isResting ? 0.4 : 1.0)
                     .allowsHitTesting(!isResting)
                 prevHint
-                logButton
                 progressDots.padding(.top, 4)
             }
             .padding(.horizontal, 4)
-            .padding(.bottom, 16)
+            .padding(.bottom, 8)
+        }
+        // Keep the primary action pinned and always visible without scrolling.
+        .safeAreaInset(edge: .bottom) {
+            logButton
+                .padding(.horizontal, 4)
+                .padding(.bottom, 4)
         }
         .animation(.easeInOut(duration: 0.2), value: isResting)
         .onAppear(perform: resetToSuggested)
@@ -50,9 +57,9 @@ struct ActiveTrackingView: View {
     }
 
     private var weightCard: some View {
-        InputCard(leftLabel: "LBS", rightLabel: "WEIGHT") {
+        InputCard(leftLabel: unitLabel, rightLabel: "WEIGHT") {
             HStack(spacing: 0) {
-                CircleStepButton(icon: "minus") { weight = max(0, weight - 2.5) }
+                CircleStepButton(icon: "minus") { weight = max(0, weight - step) }
                 Text(weightDisplay)
                     .font(.system(size: 30, weight: .bold).monospacedDigit())
                     .frame(minWidth: 70)
@@ -60,12 +67,12 @@ struct ActiveTrackingView: View {
                     .focused($crownFocused)
                     .digitalCrownRotation(
                         $weight,
-                        from: 0, through: 500, by: 2.5,
+                        from: 0, through: 1000, by: step,
                         sensitivity: .medium,
                         isContinuous: false,
                         isHapticFeedbackEnabled: true
                     )
-                CircleStepButton(icon: "plus") { weight = min(500, weight + 2.5) }
+                CircleStepButton(icon: "plus") { weight = min(1000, weight + step) }
             }
         }
     }
@@ -85,7 +92,7 @@ struct ActiveTrackingView: View {
     @ViewBuilder
     private var prevHint: some View {
         if session.workoutState.suggestedWeight > 0 {
-            Text("PREV: \(Int(session.workoutState.suggestedWeight)) LBS × \(session.workoutState.suggestedReps)")
+            Text("PREV: \(Int(session.workoutState.suggestedWeight)) \(unitLabel) × \(session.workoutState.suggestedReps)")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundColor(.secondary)
         }

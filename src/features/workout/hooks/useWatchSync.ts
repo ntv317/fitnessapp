@@ -20,10 +20,12 @@ export interface WatchWorkoutState {
   setNumber: number;
   totalSets: number;
   suggestedReps: number;
-  suggestedWeight: number;
+  suggestedWeight: number; // in the active display unit (see `unit`)
   restDuration: number;
   isResting: boolean;
   isWorkoutComplete: boolean;
+  unit: 'kg' | 'lbs';
+  weightStep: number; // +/- and Digital Crown increment, in the active unit
 }
 
 export interface WatchSetLogged {

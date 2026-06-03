@@ -132,13 +132,15 @@ export default function ExerciseDetailScreen() {
         setNumber,
         totalSets: updatedSets.length,
         suggestedReps,
-        suggestedWeight,
+        suggestedWeight: fromKg(suggestedWeight), // send in the active unit
         restDuration,
         isResting,
         isWorkoutComplete: false,
+        unit,
+        weightStep,
       });
     },
-    [exercise, suggestedReps, suggestedWeight, sendWorkoutState],
+    [exercise, suggestedReps, suggestedWeight, sendWorkoutState, fromKg, unit, weightStep],
   );
 
   // Push initial state when exercise loads
@@ -171,7 +173,7 @@ export default function ExerciseDetailScreen() {
 
   // Wire the watch handler now that completeSet exists. Reassigned each render
   // so it always closes over the latest completeSet.
-  handleWatchSetRef.current = ({ reps, weight: weightKg, setOrder }: WatchSetLogged) => {
+  handleWatchSetRef.current = ({ reps, weight, setOrder }: WatchSetLogged) => {
     const current = setsRef.current;
     const idx = setOrder - 1;
     const targetIdx =
@@ -179,7 +181,8 @@ export default function ExerciseDetailScreen() {
         ? idx
         : current.findIndex((s) => !s.done);
     if (targetIdx < 0) return;
-    completeSet(targetIdx, reps, weightKg);
+    // The watch reports weight in the active display unit; store canonical kg.
+    completeSet(targetIdx, reps, toKg(weight));
   };
 
   const toggleDone = useCallback(
