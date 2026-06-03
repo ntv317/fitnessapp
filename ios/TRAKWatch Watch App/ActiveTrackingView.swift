@@ -11,28 +11,20 @@ struct ActiveTrackingView: View {
     private var step: Double { max(0.5, session.workoutState.weightStep) }
     private var unitLabel: String { session.workoutState.unit.uppercased() }
 
+    // Rest is shown by RestView (ContentView routes on isResting), so this screen
+    // only handles active input — a single fitted, non-scrolling layout that
+    // adapts to the watch height via the flexible Spacer.
     var body: some View {
-        ScrollView {
-            VStack(spacing: 8) {
-                header
-                weightCard
-                    .opacity(isResting ? 0.4 : 1.0)
-                    .allowsHitTesting(!isResting)
-                repsCard
-                    .opacity(isResting ? 0.4 : 1.0)
-                    .allowsHitTesting(!isResting)
-                progressDots.padding(.top, 4)
-            }
-            .padding(.horizontal, 4)
-            .padding(.bottom, 8)
-        }
-        // Keep the primary action pinned and always visible without scrolling.
-        .safeAreaInset(edge: .bottom) {
+        VStack(spacing: 6) {
+            header
+            weightCard
+            repsCard
+            Spacer(minLength: 2)
             logButton
-                .padding(.horizontal, 4)
-                .padding(.bottom, 4)
         }
-        .animation(.easeInOut(duration: 0.2), value: isResting)
+        .padding(.horizontal, 4)
+        .padding(.top, 18) // clear the system time in the top-right
+        .padding(.bottom, 2)
         .onAppear(perform: resetToSuggested)
         .onChange(of: session.workoutState.exerciseName) { _ in resetToSuggested() }
         .onChange(of: session.workoutState.setNumber)    { _ in resetToSuggested() }
@@ -41,18 +33,17 @@ struct ActiveTrackingView: View {
     // MARK: - Subviews
 
     private var header: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             Text("Set \(session.workoutState.setNumber) of \(session.workoutState.totalSets)")
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .font(.system(size: 10, weight: .medium, design: .monospaced))
                 .foregroundColor(.secondary)
                 .textCase(.uppercase)
             Text(session.workoutState.exerciseName)
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 15, weight: .bold))
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
         }
-        .padding(.top, 4)
     }
 
     private var weightPrev: String {
@@ -72,7 +63,7 @@ struct ActiveTrackingView: View {
             HStack(spacing: 4) {
                 CircleStepButton(icon: "minus") { weight = max(0, weight - step) }
                 Text(weightDisplay)
-                    .font(.system(size: 38, weight: .bold).monospacedDigit())
+                    .font(.system(size: 34, weight: .bold).monospacedDigit())
                     .frame(maxWidth: .infinity)
                     .minimumScaleFactor(0.6)
                     .lineLimit(1)
@@ -95,7 +86,7 @@ struct ActiveTrackingView: View {
             HStack(spacing: 4) {
                 CircleStepButton(icon: "minus") { reps = max(1, reps - 1) }
                 Text("\(reps)")
-                    .font(.system(size: 38, weight: .bold).monospacedDigit())
+                    .font(.system(size: 34, weight: .bold).monospacedDigit())
                     .frame(maxWidth: .infinity)
                 CircleStepButton(icon: "plus") { reps = min(99, reps + 1) }
             }
@@ -127,17 +118,6 @@ struct ActiveTrackingView: View {
         .buttonStyle(.borderedProminent)
         .buttonBorderShape(.capsule)
         .tint(isResting ? TRAKColor.tertiary : TRAKColor.primary)
-    }
-
-    private var progressDots: some View {
-        HStack(spacing: 4) {
-            ForEach(1...max(1, session.workoutState.totalSets), id: \.self) { i in
-                Circle()
-                    .fill(i < session.workoutState.setNumber
-                          ? TRAKColor.primary : TRAKColor.dotInactive)
-                    .frame(width: 6, height: 6)
-            }
-        }
     }
 
     // MARK: - Helpers
@@ -182,7 +162,7 @@ struct InputCard<Content: View>: View {
             .padding(.horizontal, 8)
             content()
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 6)
         .background(TRAKColor.cardBg)
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(TRAKColor.cardBorder, lineWidth: 1))
         .cornerRadius(12)
