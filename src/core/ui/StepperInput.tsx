@@ -7,7 +7,7 @@ import {
   type ViewStyle,
   type KeyboardTypeOptions,
 } from 'react-native';
-import { Colors, Fonts, Radius, Typography } from '@/core/theme';
+import { Colors, Fonts, Radius } from '@/core/theme';
 import { AppText } from './AppText';
 
 interface StepperInputProps {
@@ -80,11 +80,16 @@ export function StepperInput({
         keyboardType={keyboardType ?? (decimal ? 'decimal-pad' : 'number-pad')}
         editable={editable}
         selectTextOnFocus
+        numberOfLines={1}
         style={{
           flex: 1,
           textAlign: 'center',
           paddingVertical: 8,
-          ...Typography.dataInput,
+          paddingHorizontal: 0,
+          // Sized so decimals like 7.25 / 102.5 fit without clipping, and weight
+          // and reps render at the same size.
+          fontSize: 18,
+          lineHeight: 22,
           fontFamily: Fonts.sansSemibold,
           color: Colors.textPrimary,
         }}
@@ -104,7 +109,7 @@ export function StepperInput({
 }
 
 const stepBtn: ViewStyle = {
-  width: 40,
+  width: 24,
   alignItems: 'center',
   justifyContent: 'center',
   alignSelf: 'stretch',

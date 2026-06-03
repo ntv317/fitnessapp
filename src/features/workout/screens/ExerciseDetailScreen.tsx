@@ -390,8 +390,8 @@ export default function ExerciseDetailScreen() {
         <View style={styles.table}>
           <View style={styles.tableHead}>
             <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colSet}>Set</AppText>
-            <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colInput} center>Weight ({unit})</AppText>
-            <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colInput} center>Reps</AppText>
+            <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colWeight} center>Weight ({unit})</AppText>
+            <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colReps} center>Reps</AppText>
             <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colDone}>Done</AppText>
           </View>
 
@@ -407,7 +407,7 @@ export default function ExerciseDetailScreen() {
                 ]}
               >
                 <AppText variant="dataInput" color={Colors.textSecondary} style={styles.colSet}>{i + 1}</AppText>
-                <View style={styles.colInput}>
+                <View style={styles.colWeight}>
                   <StepperInput
                     value={s.weight}
                     onChangeText={(v) => updateField(i, 'weight', v)}
@@ -417,7 +417,7 @@ export default function ExerciseDetailScreen() {
                     color={accent}
                   />
                 </View>
-                <View style={styles.colInput}>
+                <View style={styles.colReps}>
                   <StepperInput
                     value={s.reps}
                     onChangeText={(v) => updateField(i, 'reps', v)}
@@ -599,6 +599,8 @@ const styles = StyleSheet.create({
   rowDone: { backgroundColor: '#f7fff2', opacity: 0.85 },
   colSet: { width: COL_SET, textAlign: 'center' },
   colInput: { flex: 1 },
+  colWeight: { flex: 1.4, paddingHorizontal: 3 }, // wider — fits decimals like 102.5
+  colReps: { flex: 1, paddingHorizontal: 3 },
   colDone: { width: COL_DONE, alignItems: 'flex-end' },
   checkbox: {
     width: 44,
