@@ -14,6 +14,15 @@
 - No comments unless the WHY is non-obvious
 - No emojis in code or output unless asked
 
+## Design
+
+**Use Stitch** (MCP: `mcp__stitch__*`) for any new screen or significant UI redesign **before** writing code:
+1. Call `mcp__stitch__generate_screen_from_text` with the project ID `11182437524249099917` and design system `assets/046e64142ae3494c82599ce53615374d`
+2. Review the generated screenshot to validate layout and visual hierarchy
+3. Implement in React Native matching the Stitch output — dark background, Kinetic Mono tokens, brick-orange primary
+
+Always generate Stitch designs for: new screens, redesigned cards, onboarding flows, celebration/summary states.
+
 ## Agent Strategy
 
 **Default (main session / Sonnet):** use for all normal coding tasks.

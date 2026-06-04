@@ -14,12 +14,71 @@ import { useBarbellConfig } from '../hooks/useBarbellConfig';
 import { calculatePlates } from '@/core/utils/plateCalculator';
 import { PlateChips } from '@/core/ui/PlateChips';
 import { ProgressChart } from '@/features/history/components/ProgressChart';
+import { detectPR } from '../utils/pr';
+import { startSession, addExerciseResult, getSession } from '../utils/workoutSession';
+import { formatWeight } from '@/core/utils/format';
 const MARGIN = 20; // margin-mobile
 
 interface SetState {
   weight: string; // as typed, in active unit
   reps: string;
   done: boolean;
+}
+
+interface CelebrateData {
+  exerciseName: string;
+  setCount: number;
+  volumeDisplay: string;
+  isPR: boolean;
+}
+
+// ── Exercise complete overlay ─────────────────────────────────────────────────
+
+function ExerciseCompleteOverlay({
+  data,
+  accent,
+  unit,
+  onNext,
+}: {
+  data: CelebrateData;
+  accent: string;
+  unit: string;
+  onNext: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const t = setTimeout(onNext, 1800);
+    return () => clearTimeout(t);
+  }, [onNext]);
+
+  return (
+    <TouchableOpacity
+      style={[styles.celebrateOverlay, { paddingTop: insets.top }]}
+      onPress={onNext}
+      activeOpacity={1}
+    >
+      <View style={styles.celebrateContent}>
+        <View style={[styles.celebrateCircle, { borderColor: accent }]}>
+          <Ionicons name="checkmark" size={44} color={accent} />
+        </View>
+        {data.isPR && (
+          <View style={[styles.prBadge, { backgroundColor: accent }]}>
+            <AppText style={styles.prBadgeText}>NEW PR</AppText>
+          </View>
+        )}
+        <AppText variant="headlineLg" center style={{ fontSize: 26, lineHeight: 32, marginTop: 16 }}>
+          {data.exerciseName}
+        </AppText>
+        <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginTop: 6 }}>
+          {data.setCount} sets · {data.volumeDisplay} {unit}
+        </AppText>
+        <AppText variant="labelMono" color={Colors.textMuted} style={{ marginTop: 32 }}>
+          tap to continue
+        </AppText>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 // ── Full-screen rest timer ────────────────────────────────────────────────────
@@ -157,9 +216,11 @@ function RestTimerOverlay({
 
 export default function ExerciseDetailScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ id: string; color?: string; day?: string }>();
+  const params = useLocalSearchParams<{ id: string; color?: string; day?: string; startTime?: string }>();
   const exerciseId = Number(params.id);
   const accent = params.color ?? Colors.primary;
+  const startTimeRef = useRef(params.startTime ? parseInt(params.startTime) : Date.now());
+  const [celebrateData, setCelebrateData] = useState<CelebrateData | null>(null);
 
   const { unit, toKg, fromKg, conversionHint, showConversion } = useUnit();
   const { config: barbellConfig } = useBarbellConfig();
@@ -255,6 +316,12 @@ export default function ExerciseDetailScreen() {
     [exercise, suggestedReps, suggestedWeight, sendWorkoutState, fromKg, unit, weightStep, barbellConfig, showConversion],
   );
 
+  // Start session tracking on the very first exercise (no startTime in params)
+  useEffect(() => {
+    if (!params.startTime) startSession(startTimeRef.current);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Push initial state when exercise loads
   useEffect(() => {
     if (!exercise) return;
@@ -311,8 +378,7 @@ export default function ExerciseDetailScreen() {
   );
 
   // Ends the rest period (timer elapsed or user skipped). If every set is done,
-  // advances to the next exercise in the day (or leaves if it was the last);
-  // otherwise just unlocks the next set. Keeps the watch in sync.
+  // shows the exercise-complete overlay; otherwise just unlocks the next set.
   const endRest = useCallback(
     (skipped = false) => {
       setRestSeconds(null);
@@ -321,18 +387,45 @@ export default function ExerciseDetailScreen() {
 
       const allDone = setsRef.current.length > 0 && setsRef.current.every((s) => s.done);
       if (allDone) {
-        if (nextExercise) {
-          router.replace({
-            pathname: '/exercise/[id]',
-            params: { id: String(nextExercise.id), color: accent, day: params.day ?? '' },
-          } as never);
-        } else {
-          router.back(); // last exercise of the day — return to the plan
-        }
+        // Compute volume and PR for this exercise
+        const sessionSetsKg = setsRef.current.map((s) => ({
+          weight: toKg(parseFloat(s.weight) || 0),
+          reps: parseInt(s.reps) || 0,
+        }));
+        const volumeKg = sessionSetsKg.reduce((sum, s) => sum + s.weight * s.reps, 0);
+        const isPR = detectPR(sessionSetsKg, history);
+        addExerciseResult({ name: exercise?.name ?? '', volumeKg, isPR });
+        setCelebrateData({
+          exerciseName: exercise?.name ?? '',
+          setCount: setsRef.current.length,
+          volumeDisplay: formatWeight(fromKg(volumeKg)),
+          isPR,
+        });
       }
     },
-    [sendMessage, pushWatchState, nextExercise, router, accent, params.day],
+    [sendMessage, pushWatchState, exercise, history, toKg, fromKg],
   );
+
+  // Called when the celebrate overlay auto-advances or is tapped
+  const handleCelebrateNext = useCallback(() => {
+    setCelebrateData(null);
+    if (nextExercise) {
+      router.replace({
+        pathname: '/exercise/[id]',
+        params: {
+          id: String(nextExercise.id),
+          color: accent,
+          day: params.day ?? '',
+          startTime: String(startTimeRef.current),
+        },
+      } as never);
+    } else {
+      router.replace({
+        pathname: '/workout/summary',
+        params: { day: params.day ?? '', startTime: String(startTimeRef.current), color: accent },
+      } as never);
+    }
+  }, [nextExercise, router, accent, params.day]);
 
   // Watch "Skip Rest" routes here once endRest exists.
   handleSkipRef.current = () => endRest(false);
@@ -532,6 +625,16 @@ export default function ExerciseDetailScreen() {
           onSkip={() => endRest(true)}
         />
       )}
+
+      {/* Exercise complete celebration overlay */}
+      {celebrateData && (
+        <ExerciseCompleteOverlay
+          data={celebrateData}
+          accent={accent}
+          unit={unit}
+          onNext={handleCelebrateNext}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -675,4 +778,33 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   section: { marginTop: Spacing.xl },
+
+  celebrateOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.background,
+    zIndex: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  celebrateContent: { alignItems: 'center', paddingHorizontal: MARGIN },
+  celebrateCircle: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  prBadge: {
+    marginTop: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: Radius.full,
+  },
+  prBadgeText: {
+    fontFamily: Fonts.monoBold,
+    fontSize: 11,
+    color: Colors.white,
+    letterSpacing: 1,
+  },
 });
