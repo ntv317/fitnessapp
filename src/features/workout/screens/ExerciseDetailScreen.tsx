@@ -209,14 +209,24 @@ export default function ExerciseDetailScreen() {
 
   // Size the table to the planned set count AND pre-fill each row with the last
   // session's weight/reps, so the screen opens on your previous numbers (not 0).
-  // Re-runs as history settles — until the user types/steps/logs anything.
+  // Depends on `history` (not the derived scalars) so the effect re-runs when
+  // history arrives from the DB — even when the derived values happen to equal
+  // the initial defaults (e.g. weight=0 or reps=10 from an AI-imported session).
   useEffect(() => {
     if (touchedRef.current || !exercise) return;
+    const session = history[0];
     const n = exercise.targetSets > 0 ? exercise.targetSets : 3;
-    const w = suggestedWeight > 0 ? String(Math.round(fromKg(suggestedWeight) * 10) / 10) : '';
-    const r = suggestedReps > 0 ? String(suggestedReps) : '';
-    setSets(Array.from({ length: n }, () => ({ weight: w, reps: r, done: false })));
-  }, [exercise, suggestedWeight, suggestedReps, fromKg]);
+    setSets(
+      Array.from({ length: n }, (_, i) => {
+        // Match by setOrder (1-based) so set 1 gets set 1's values, set 2 gets set 2's, etc.
+        const prev = session?.sets.find((s) => s.setOrder === i + 1) ?? session?.sets[i];
+        const w = prev && prev.weight > 0 ? String(Math.round(fromKg(prev.weight) * 10) / 10) : '';
+        const r = prev && prev.reps > 0 ? String(prev.reps) : '';
+        return { weight: w, reps: r, done: false };
+      }),
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exercise, history, fromKg]);
 
   const pushWatchState = useCallback(
     (updatedSets: SetState[], isResting: boolean, restDuration: number) => {

@@ -6,8 +6,9 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { WEEKLY_PLAN } from '@/core/config/workoutPlan';
 import { useAllDays } from '../hooks/useExercises';
-import { useAllHistory } from '../hooks/useWorkoutLogs';
-import { loggedSetsThisWeek, dayProgress, DEFAULT_TARGET_SETS, type SetProgress } from '../utils/progress';
+import { useWeeklyProgress } from '../hooks/useWorkoutLogs';
+import { dayProgress, DEFAULT_TARGET_SETS, type SetProgress } from '../utils/progress';
+import { weekStartOf } from '@/core/utils/date';
 import { AppText, UnitToggle } from '@/core/ui';
 import type { Exercise } from '@/core/database/types';
 
@@ -85,6 +86,7 @@ function DayCard({
   expanded,
   onToggle,
   progress,
+  lastWeekProgress,
   loggedMap,
   onOpenExercise,
 }: {
@@ -94,6 +96,7 @@ function DayCard({
   expanded: boolean;
   onToggle: () => void;
   progress: SetProgress;
+  lastWeekProgress: SetProgress;
   loggedMap: Map<number, number>;
   onOpenExercise: (ex: Exercise) => void;
 }) {
@@ -132,7 +135,7 @@ function DayCard({
         </View>
       </View>
 
-      {/* Weekly progress (sets completed this week) */}
+      {/* This week's progress */}
       <View style={styles.progressBlock}>
         <View style={styles.progressLabelRow}>
           <AppText variant="labelMono" upper color={Colors.textSecondary}>This Week</AppText>
@@ -143,6 +146,22 @@ function DayCard({
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${pct * 100}%`, backgroundColor: color }]} />
         </View>
+
+        {/* Last week indicator — only shown if the user trained that day last week */}
+        {lastWeekProgress.total > 0 && (
+          <View style={styles.lastWeekRow}>
+            <AppText variant="labelMono" upper color={Colors.textMuted}>Last Week</AppText>
+            <AppText
+              variant="labelMono"
+              upper
+              color={lastWeekProgress.complete ? color : Colors.textMuted}
+            >
+              {lastWeekProgress.complete
+                ? '✓ Complete'
+                : `${lastWeekProgress.done}/${lastWeekProgress.total} Sets`}
+            </AppText>
+          </View>
+        )}
       </View>
 
       {/* Expanded exercise list */}
@@ -173,15 +192,20 @@ function DayCard({
 export default function WorkoutLogScreen() {
   const router = useRouter();
   const { data: allDays = [] } = useAllDays();
-  const { data: history = [], refetch: refetchHistory } = useAllHistory();
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // empty = all collapsed
 
-  // Refresh weekly progress whenever the Log screen regains focus (e.g. after
+  const thisWeekStart = useMemo(() => weekStartOf(Date.now()), []);
+  const lastWeekStart = useMemo(() => thisWeekStart - 7 * 24 * 60 * 60 * 1000, [thisWeekStart]);
+
+  const { data: thisWeekMap = new Map(), refetch: refetchThisWeek } = useWeeklyProgress(thisWeekStart);
+  const { data: lastWeekMap = new Map() } = useWeeklyProgress(lastWeekStart);
+
+  // Refresh this week's counts whenever the screen regains focus (e.g. after
   // logging sets on the exercise detail screen and navigating back).
   useFocusEffect(
     useCallback(() => {
-      refetchHistory();
-    }, [refetchHistory]),
+      refetchThisWeek();
+    }, [refetchThisWeek]),
   );
 
   const today = new Date().getDay();
@@ -197,10 +221,7 @@ export default function WorkoutLogScreen() {
     return [...allDays].sort((a, b) => offset(a.dayTag) - offset(b.dayTag));
   }, [allDays, today]);
 
-  // exerciseId → sets logged this calendar week. Drives set-level day progress,
-  // counted by exercise membership (not the log's primary dayTag) so a day's
-  // progress reflects exactly the exercises shown on that card.
-  const loggedMap = useMemo(() => loggedSetsThisWeek(history), [history]);
+  const loggedMap = thisWeekMap;
 
   const toggle = useCallback((tag: string) => {
     setExpanded((prev) => {
@@ -257,6 +278,7 @@ export default function WorkoutLogScreen() {
               expanded={expanded.has(dayTag)}
               onToggle={() => toggle(dayTag)}
               progress={dayProgress(exercises, loggedMap)}
+              lastWeekProgress={dayProgress(exercises, lastWeekMap)}
               loggedMap={loggedMap}
               onOpenExercise={(ex) => openExercise(ex, dayColor(dayTag), dayTag)}
             />
@@ -311,6 +333,7 @@ const styles = StyleSheet.create({
 
   progressBlock: { marginTop: Spacing.md },
   progressLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  lastWeekRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
   progressTrack: {
     height: 4,
     backgroundColor: Colors.border,

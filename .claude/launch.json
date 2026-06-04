@@ -18,6 +18,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["expo", "start", "--android"],
       "port": 8081
+    },
+    {
+      "name": "Watch App (Simulator)",
+      "runtimeExecutable": "xcodebuild",
+      "runtimeArgs": ["-workspace", "ios/FitnessApp.xcworkspace", "-scheme", "TRAKWatch Watch App", "-configuration", "Debug", "-derivedDataPath", "ios/build", "-arch", "arm64", "-sdk", "watchsimulator", "install"],
+      "port": null
     }
   ]
 }

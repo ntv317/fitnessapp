@@ -2,6 +2,12 @@ import { z } from 'zod';
 
 // ── RAW ROW TYPES (SQLite columns, never leave the repository tier) ──────────
 
+export interface WeeklyProgressRow {
+  exercise_id: number;
+  week_start: number; // epoch ms of local Monday 00:00:00
+  sets_done: number;
+}
+
 export interface ExerciseRow {
   id: number;
   name: string;
@@ -58,6 +64,12 @@ export interface WorkoutLog {
 export interface WorkoutLogWithExercise extends WorkoutLog {
   exerciseName: string;
   dayTag: string | null;
+}
+
+export interface WeeklyEntry {
+  exerciseId: number;
+  weekStart: number;
+  setsDone: number;
 }
 
 // ── WRITE INPUTS (no id — the DB assigns it) ─────────────────────────────────

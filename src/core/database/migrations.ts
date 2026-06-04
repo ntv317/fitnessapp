@@ -1,6 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { weekStartOf } from '@/core/utils/date';
 
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
@@ -83,6 +84,38 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
     // Existing rows default to 3; AI import populates the real value on next import.
     await db.execAsync(`ALTER TABLE Exercises ADD COLUMN target_sets INTEGER NOT NULL DEFAULT 3;`);
     version = 4;
+  }
+
+  if (version === 4) {
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS WeeklyProgress (
+        exercise_id INTEGER NOT NULL REFERENCES Exercises(id) ON DELETE CASCADE,
+        week_start  INTEGER NOT NULL,
+        sets_done   INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (exercise_id, week_start)
+      );
+      CREATE INDEX IF NOT EXISTS idx_weekly_week ON WeeklyProgress (week_start);
+    `);
+
+    // Backfill from existing logs — group by exercise + week so the counter
+    // is accurate for all historical data from day one.
+    type LogRow = { exercise_id: number; timestamp: number; set_count: number };
+    const logs = await db.getAllAsync<LogRow>(
+      `SELECT wl.exercise_id, wl.timestamp, COUNT(ws.id) AS set_count
+       FROM WorkoutLogs wl
+       JOIN WorkoutSets ws ON ws.log_id = wl.id
+       GROUP BY wl.id;`,
+    );
+    for (const log of logs) {
+      const ws = weekStartOf(log.timestamp);
+      await db.runAsync(
+        `INSERT INTO WeeklyProgress (exercise_id, week_start, sets_done) VALUES (?, ?, ?)
+         ON CONFLICT(exercise_id, week_start) DO UPDATE SET sets_done = sets_done + excluded.sets_done;`,
+        [log.exercise_id, ws, log.set_count],
+      );
+    }
+
+    version = 5;
   }
 
   await db.execAsync(`PRAGMA user_version = ${version};`);

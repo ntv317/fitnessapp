@@ -38,6 +38,16 @@ export function useLogWorkout() {
   });
 }
 
+/** Sets logged for each exercise in the given week (exerciseId → count). */
+export function useWeeklyProgress(weekStart: number) {
+  const repo = useRepository();
+  return useQuery({
+    queryKey: ['weekly', weekStart] as const,
+    queryFn: () => repo.getWeeklyProgress(weekStart),
+    staleTime: 0,
+  });
+}
+
 /** Delete a log; invalidates all history queries (we don't know which exercise). */
 export function useDeleteLog() {
   const repo = useRepository();
@@ -76,10 +86,9 @@ export function useAutoSaveSet() {
       }
       logIdRef.current.set(exerciseId, logId);
     }
-    await repo.appendSet(logId, setOrder, reps, weight);
-    // Invalidate the whole 'history' tree so per-exercise charts AND the
-    // Log page's ['history','all'] weekly-progress query both refetch.
+    await repo.appendSet(logId, exerciseId, setOrder, reps, weight);
     qc.invalidateQueries({ queryKey: ['history'] });
+    qc.invalidateQueries({ queryKey: ['weekly'] });
   }, [repo, qc]);
 
   return saveSet;

@@ -25,10 +25,13 @@ export interface IWorkoutRepository {
 
   /** Create an empty workout log for an exercise; returns logId. */
   createLog(exerciseId: number, timestamp: number): Promise<number>;
-  /** Append a single set to an existing log. */
-  appendSet(logId: number, setOrder: number, reps: number, weight: number): Promise<void>;
+  /** Append a single set to an existing log and increment the weekly counter. */
+  appendSet(logId: number, exerciseId: number, setOrder: number, reps: number, weight: number): Promise<void>;
   /** Get today's log id for an exercise, or null if none exists. */
   getTodayLogId(exerciseId: number): Promise<number | null>;
+
+  /** Sets logged in the given week per exercise (exerciseId → sets_done). */
+  getWeeklyProgress(weekStart: number): Promise<Map<number, number>>;
 
   /** Cursor-paginated history for one exercise, newest first. */
   getHistory(exerciseId: number, options: PageOptions): Promise<WorkoutLog[]>;

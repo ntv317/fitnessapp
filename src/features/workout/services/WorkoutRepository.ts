@@ -12,6 +12,7 @@ import type {
   WorkoutLogWithExercise,
   WorkoutSetRow,
 } from '@/core/database/types';
+import { weekStartOf } from '@/core/utils/date';
 
 type ExerciseWithDay = ExerciseRow & { day_tag: string | null };
 
@@ -172,11 +173,27 @@ export class WorkoutRepository implements IWorkoutRepository {
     return result.lastInsertRowId;
   }
 
-  async appendSet(logId: number, setOrder: number, reps: number, weight: number): Promise<void> {
-    await this.db.runAsync(
-      'INSERT INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (?, ?, ?, ?);',
-      [logId, setOrder, reps, weight],
+  async appendSet(logId: number, exerciseId: number, setOrder: number, reps: number, weight: number): Promise<void> {
+    const weekStart = weekStartOf(Date.now());
+    await this.db.withTransactionAsync(async () => {
+      await this.db.runAsync(
+        'INSERT INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (?, ?, ?, ?);',
+        [logId, setOrder, reps, weight],
+      );
+      await this.db.runAsync(
+        `INSERT INTO WeeklyProgress (exercise_id, week_start, sets_done) VALUES (?, ?, 1)
+         ON CONFLICT(exercise_id, week_start) DO UPDATE SET sets_done = sets_done + 1;`,
+        [exerciseId, weekStart],
+      );
+    });
+  }
+
+  async getWeeklyProgress(weekStart: number): Promise<Map<number, number>> {
+    const rows = await this.db.getAllAsync<{ exercise_id: number; sets_done: number }>(
+      `SELECT exercise_id, sets_done FROM WeeklyProgress WHERE week_start = ?;`,
+      [weekStart],
     );
+    return new Map(rows.map((r) => [r.exercise_id, r.sets_done]));
   }
 
   async getTodayLogId(exerciseId: number): Promise<number | null> {
@@ -323,6 +340,13 @@ export class WorkoutRepository implements IWorkoutRepository {
               [exercise.id, timestamp],
             );
             await this.insertSets(header.lastInsertRowId, item.sets);
+            // Keep the weekly counter in sync with imported session sets.
+            const ws = weekStartOf(timestamp);
+            await this.db.runAsync(
+              `INSERT INTO WeeklyProgress (exercise_id, week_start, sets_done) VALUES (?, ?, ?)
+               ON CONFLICT(exercise_id, week_start) DO UPDATE SET sets_done = sets_done + excluded.sets_done;`,
+              [exercise.id, ws, item.sets.length],
+            );
           }
         }
       }
