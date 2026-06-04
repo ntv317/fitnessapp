@@ -23,7 +23,7 @@ export const Colors = {
 
   textPrimary: '#1c1b1b',      // near-black charcoal
   textSecondary: '#5c4037',    // warm brown-gray
-  textMuted: '#907065',        // muted outline tone
+  textMuted: '#7a5f55',        // muted outline tone — #907065 failed WCAG AA
   border: '#e5e2e1',           // 1px hairline stroke
   white: '#ffffff',
 } as const;

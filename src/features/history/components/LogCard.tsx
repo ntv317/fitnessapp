@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { formatTimestamp } from '@/core/utils/date';
 import { formatWeight } from '@/core/utils/format';
+import { useUnit } from '@/core/context/UnitContext';
 import type { WorkoutLog } from '@/core/database/types';
 
 interface Props {
@@ -11,11 +12,16 @@ interface Props {
 }
 
 export function LogCard({ log, onDelete }: Props) {
+  const { fromKg, unit, conversionHint } = useUnit();
   const totalVolume = log.sets.reduce((acc, s) => acc + s.reps * s.weight, 0);
   const topSet = log.sets.reduce(
     (best, s) => (s.weight > best.weight ? s : best),
     log.sets[0],
   );
+  const topSetDisplay = formatWeight(fromKg(topSet?.weight ?? 0));
+  const volumeDisplay = formatWeight(fromKg(totalVolume));
+  const topHint = conversionHint(fromKg(topSet?.weight ?? 0));
+  const volHint = conversionHint(fromKg(totalVolume));
 
   return (
     <View style={styles.card}>
@@ -28,17 +34,18 @@ export function LogCard({ log, onDelete }: Props) {
 
       <View style={styles.stats}>
         <Stat label="Sets" value={String(log.sets.length)} />
-        <Stat label="Top Set" value={`${topSet?.reps ?? 0} × ${formatWeight(topSet?.weight ?? 0)} kg`} />
-        <Stat label="Volume" value={`${formatWeight(totalVolume)} kg`} />
+        <Stat label="Top Set" value={`${topSet?.reps ?? 0} × ${topSetDisplay} ${unit}`} hint={topHint} />
+        <Stat label="Volume" value={`${volumeDisplay} ${unit}`} hint={volHint} />
       </View>
     </View>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string | null }) {
   return (
     <View style={styles.stat}>
       <Text style={styles.statValue}>{value}</Text>
+      {hint ? <Text style={styles.statHint}>{hint}</Text> : null}
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -57,5 +64,6 @@ const styles = StyleSheet.create({
   stats: { flexDirection: 'row', justifyContent: 'space-around' },
   stat: { alignItems: 'center' },
   statValue: { color: Colors.textPrimary, fontSize: FontSize.md, fontWeight: '700' },
+  statHint: { color: Colors.textMuted, fontSize: 10, marginTop: 1 },
   statLabel: { color: Colors.textMuted, fontSize: FontSize.xs, marginTop: 2 },
 });

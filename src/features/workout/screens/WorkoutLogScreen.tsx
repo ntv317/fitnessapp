@@ -9,7 +9,7 @@ import { useAllDays } from '../hooks/useExercises';
 import { useWeeklyProgress } from '../hooks/useWorkoutLogs';
 import { dayProgress, DEFAULT_TARGET_SETS, type SetProgress } from '../utils/progress';
 import { weekStartOf } from '@/core/utils/date';
-import { AppText, UnitToggle } from '@/core/ui';
+import { AppText } from '@/core/ui';
 import type { Exercise } from '@/core/database/types';
 
 const MARGIN = 20; // margin-mobile
@@ -249,7 +249,12 @@ export default function WorkoutLogScreen() {
             Workout
           </AppText>
         </View>
-        <UnitToggle />
+        <TouchableOpacity
+          onPress={() => router.push('/settings')}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="settings-outline" size={22} color={Colors.textMuted} />
+        </TouchableOpacity>
       </View>
 
       {allDays.length === 0 ? (

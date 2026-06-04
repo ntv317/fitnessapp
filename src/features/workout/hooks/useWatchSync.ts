@@ -26,6 +26,8 @@ export interface WatchWorkoutState {
   isWorkoutComplete: boolean;
   unit: 'kg' | 'lbs';
   weightStep: number; // +/- and Digital Crown increment, in the active unit
+  plateBreakdown: number[]; // plates per side, largest-first; empty = no config
+  showWeightConversion: boolean;
 }
 
 export interface WatchSetLogged {

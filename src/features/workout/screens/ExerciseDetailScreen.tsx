@@ -10,6 +10,9 @@ import { useUnit } from '@/core/context/UnitContext';
 import { useExercises, useAllDays } from '../hooks/useExercises';
 import { useAutoSaveSet, useWorkoutLogs } from '../hooks/useWorkoutLogs';
 import { useWatchSync, type WatchSetLogged } from '../hooks/useWatchSync';
+import { useBarbellConfig } from '../hooks/useBarbellConfig';
+import { calculatePlates } from '@/core/utils/plateCalculator';
+import { PlateChips } from '@/core/ui/PlateChips';
 import { ProgressChart } from '@/features/history/components/ProgressChart';
 const MARGIN = 20; // margin-mobile
 
@@ -158,7 +161,8 @@ export default function ExerciseDetailScreen() {
   const exerciseId = Number(params.id);
   const accent = params.color ?? Colors.primary;
 
-  const { unit, toKg, fromKg } = useUnit();
+  const { unit, toKg, fromKg, conversionHint, showConversion } = useUnit();
+  const { config: barbellConfig } = useBarbellConfig();
   const saveSet = useAutoSaveSet();
   const { data: exercises = [] } = useExercises();
   const { data: history = [] } = useWorkoutLogs(exerciseId);
@@ -232,6 +236,7 @@ export default function ExerciseDetailScreen() {
     (updatedSets: SetState[], isResting: boolean, restDuration: number) => {
       const nextIdx = updatedSets.findIndex((s) => !s.done);
       const setNumber = nextIdx >= 0 ? nextIdx + 1 : updatedSets.length;
+      const { plates } = calculatePlates(suggestedWeight, barbellConfig.barWeight, barbellConfig.plates);
       sendWorkoutState({
         exerciseName: exercise?.name ?? '',
         setNumber,
@@ -243,9 +248,11 @@ export default function ExerciseDetailScreen() {
         isWorkoutComplete: false,
         unit,
         weightStep,
+        plateBreakdown: plates,
+        showWeightConversion: showConversion,
       });
     },
-    [exercise, suggestedReps, suggestedWeight, sendWorkoutState, fromKg, unit, weightStep],
+    [exercise, suggestedReps, suggestedWeight, sendWorkoutState, fromKg, unit, weightStep, barbellConfig, showConversion],
   );
 
   // Push initial state when exercise loads
@@ -436,6 +443,11 @@ export default function ExerciseDetailScreen() {
                     editable={!s.done}
                     color={accent}
                   />
+                  {conversionHint(parseFloat(s.weight) || 0) ? (
+                    <AppText variant="labelMono" color={Colors.textMuted} style={styles.convHint}>
+                      {conversionHint(parseFloat(s.weight) || 0)}
+                    </AppText>
+                  ) : null}
                 </View>
                 <View style={styles.colReps}>
                   <StepperInput
@@ -464,6 +476,24 @@ export default function ExerciseDetailScreen() {
             <AppText variant="labelMono" upper color={Colors.textSecondary}>Add Set</AppText>
           </TouchableOpacity>
         </View>
+
+        {/* Plate calculator */}
+        {(() => {
+          const activeW = parseFloat(sets[activeIdx]?.weight ?? '') || 0;
+          if (activeW <= 0 || barbellConfig.plates.length === 0) return null;
+          const weightKg = toKg(activeW);
+          const result = calculatePlates(weightKg, barbellConfig.barWeight, barbellConfig.plates);
+          if (result.plates.length === 0) return null;
+          return (
+            <PlateChips
+              plates={result.plates}
+              barWeight={Math.round(fromKg(barbellConfig.barWeight) * 10) / 10}
+              totalWeight={fromKg(result.achievable)}
+              exact={result.exact}
+              unit={unit}
+            />
+          );
+        })()}
 
         {/* Progress chart */}
         {history.length >= 2 && (
@@ -619,7 +649,8 @@ const styles = StyleSheet.create({
   rowDone: { backgroundColor: '#f7fff2', opacity: 0.85 },
   colSet: { width: COL_SET, textAlign: 'center' },
   colInput: { flex: 1 },
-  colWeight: { flex: 1.4, paddingHorizontal: 3 }, // wider — fits decimals like 102.5
+  colWeight: { flex: 1.4, paddingHorizontal: 3, alignItems: 'center' }, // wider — fits decimals like 102.5
+  convHint: { fontSize: 10, marginTop: 1 },
   colReps: { flex: 1, paddingHorizontal: 3 },
   colDone: { width: COL_DONE, alignItems: 'flex-end' },
   checkbox: {
