@@ -430,6 +430,29 @@ export default function ExerciseDetailScreen() {
   // Watch "Skip Rest" routes here once endRest exists.
   handleSkipRef.current = () => endRest(false);
 
+  // Finish button — flush current exercise's done sets into session, then go to summary
+  const handleFinish = useCallback(() => {
+    const doneSets = setsRef.current.filter((s) => s.done);
+    if (doneSets.length > 0) {
+      const sessionSetsKg = doneSets.map((s) => ({
+        weight: toKg(parseFloat(s.weight) || 0),
+        reps: parseInt(s.reps) || 0,
+      }));
+      const volumeKg = sessionSetsKg.reduce((sum, s) => sum + s.weight * s.reps, 0);
+      const isPR = detectPR(sessionSetsKg, history);
+      addExerciseResult({ name: exercise?.name ?? '', volumeKg, isPR });
+    }
+    const session = getSession();
+    if (session && session.exercises.length > 0) {
+      router.replace({
+        pathname: '/workout/summary',
+        params: { day: params.day ?? '', startTime: String(startTimeRef.current), color: accent },
+      } as never);
+    } else {
+      router.back();
+    }
+  }, [toKg, history, exercise, accent, params.day]);
+
   const updateField = (index: number, field: 'weight' | 'reps', value: string) => {
     touchedRef.current = true;
     setSets((prev) =>
@@ -472,7 +495,7 @@ export default function ExerciseDetailScreen() {
             Workout
           </AppText>
         </View>
-        <TouchableOpacity style={styles.finishBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={styles.finishBtn} onPress={handleFinish}>
           <AppText variant="bodyMd" color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>
             Finish
           </AppText>
