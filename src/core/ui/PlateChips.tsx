@@ -12,7 +12,7 @@ interface Props {
 }
 
 export function PlateChips({ plates, barWeight, totalWeight, exact, unit }: Props) {
-  const { conversionHint } = useUnit();
+  const { conversionHint, fromKg } = useUnit();
   if (plates.length === 0) return null;
 
   return (
@@ -21,13 +21,15 @@ export function PlateChips({ plates, barWeight, totalWeight, exact, unit }: Prop
         Plates per side
       </AppText>
       <View style={styles.row}>
-        {plates.map((p, i) => (
-          <View key={i} style={styles.chip}>
-            <AppText style={styles.chipText}>
-              {p % 1 === 0 ? String(p) : String(p)}
-            </AppText>
-          </View>
-        ))}
+        {plates.map((p, i) => {
+          const d = fromKg(p);
+          const label = d % 1 === 0 ? String(Math.round(d)) : String(Math.round(d * 100) / 100);
+          return (
+            <View key={i} style={styles.chip}>
+              <AppText style={styles.chipText}>{label}</AppText>
+            </View>
+          );
+        })}
       </View>
       <View style={styles.footer}>
         <AppText variant="labelMono" color={Colors.textMuted}>

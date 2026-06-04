@@ -248,7 +248,7 @@ export default function ExerciseDetailScreen() {
         isWorkoutComplete: false,
         unit,
         weightStep,
-        plateBreakdown: plates,
+        plateBreakdown: plates.map(p => Math.round(fromKg(p) * 10) / 10),
         showWeightConversion: showConversion,
       });
     },
@@ -443,7 +443,7 @@ export default function ExerciseDetailScreen() {
                     editable={!s.done}
                     color={accent}
                   />
-                  {conversionHint(parseFloat(s.weight) || 0) ? (
+                  {active && conversionHint(parseFloat(s.weight) || 0) ? (
                     <AppText variant="labelMono" color={Colors.textMuted} style={styles.convHint}>
                       {conversionHint(parseFloat(s.weight) || 0)}
                     </AppText>

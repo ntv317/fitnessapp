@@ -5,20 +5,37 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/core/ui/AppText';
 import { Colors, Spacing, Radius, Fonts, FontSize } from '@/core/theme';
-import { useBarbellConfig, ALL_PLATE_SIZES } from '@/features/workout/hooks/useBarbellConfig';
+import { useBarbellConfig, ALL_PLATE_SIZES, ALL_PLATE_SIZES_LB, LB_TO_KG, KG_TO_LB } from '@/features/workout/hooks/useBarbellConfig';
+import { useUnit } from '@/core/context/UnitContext';
 
-const PRESET_BARS = [15, 20] as const;
+const KG_BAR_PRESETS = [15, 20] as const;
+const LB_BAR_PRESETS = [35, 45] as const;
 
 export default function BarbellSetupScreen() {
   const router = useRouter();
+  const { unit } = useUnit();
   const { config, saveConfig } = useBarbellConfig();
 
-  const [barWeight, setBarWeight] = useState(config.barWeight);
-  const [customBar, setCustomBar] = useState(
-    PRESET_BARS.includes(config.barWeight as 15 | 20) ? '' : String(config.barWeight),
-  );
-  const [isCustom, setIsCustom] = useState(!PRESET_BARS.includes(config.barWeight as 15 | 20));
-  const [plates, setPlates] = useState<Set<number>>(new Set(config.plates));
+  const isLbs = unit === 'lbs';
+  const barPresets: readonly number[] = isLbs ? LB_BAR_PRESETS : KG_BAR_PRESETS;
+  const plateSizes: readonly number[] = isLbs ? ALL_PLATE_SIZES_LB : ALL_PLATE_SIZES;
+
+  const initBarDisplay = isLbs ? Math.round(config.barWeight * KG_TO_LB) : config.barWeight;
+  const initIsPreset = barPresets.includes(initBarDisplay);
+
+  const [barWeight, setBarWeight] = useState(initIsPreset ? initBarDisplay : barPresets[barPresets.length - 1]);
+  const [customBar, setCustomBar] = useState(initIsPreset ? '' : String(initBarDisplay));
+  const [isCustom, setIsCustom] = useState(!initIsPreset);
+  const [plates, setPlates] = useState<Set<number>>(() => {
+    if (!isLbs) return new Set(config.plates);
+    const selected = new Set<number>();
+    for (const lbPlate of ALL_PLATE_SIZES_LB) {
+      if (config.plates.some(kg => Math.abs(kg - lbPlate * LB_TO_KG) < 0.1)) {
+        selected.add(lbPlate);
+      }
+    }
+    return selected;
+  });
 
   const togglePlate = (p: number) => {
     setPlates((prev) => {
@@ -29,8 +46,12 @@ export default function BarbellSetupScreen() {
   };
 
   const handleSave = async () => {
-    const bar = isCustom ? parseFloat(customBar) || 20 : barWeight;
-    await saveConfig({ barWeight: bar, plates: [...plates].sort((a, b) => a - b) });
+    const barDisplay = isCustom ? parseFloat(customBar) || barPresets[barPresets.length - 1] : barWeight;
+    const barKg = isLbs ? barDisplay * LB_TO_KG : barDisplay;
+    const platesKg = isLbs
+      ? [...plates].map(p => p * LB_TO_KG).sort((a, b) => a - b)
+      : [...plates].sort((a, b) => a - b);
+    await saveConfig({ barWeight: barKg, plates: platesKg });
     router.back();
   };
 
@@ -52,7 +73,7 @@ export default function BarbellSetupScreen() {
           Bar Weight
         </AppText>
         <View style={styles.segmentRow}>
-          {PRESET_BARS.map((b) => (
+          {barPresets.map((b) => (
             <TouchableOpacity
               key={b}
               style={[styles.segment, !isCustom && barWeight === b && styles.segmentActive]}
@@ -62,7 +83,7 @@ export default function BarbellSetupScreen() {
                 variant="bodyMd"
                 style={[styles.segmentText, !isCustom && barWeight === b && styles.segmentTextActive]}
               >
-                {b} kg
+                {b} {unit}
               </AppText>
             </TouchableOpacity>
           ))}
@@ -84,7 +105,7 @@ export default function BarbellSetupScreen() {
             value={customBar}
             onChangeText={setCustomBar}
             keyboardType="decimal-pad"
-            placeholder="e.g. 10"
+            placeholder={isLbs ? 'e.g. 45' : 'e.g. 10'}
             placeholderTextColor={Colors.textMuted}
           />
         )}
@@ -94,7 +115,7 @@ export default function BarbellSetupScreen() {
           Plates Available
         </AppText>
         <View style={styles.grid}>
-          {ALL_PLATE_SIZES.map((p) => {
+          {plateSizes.map((p) => {
             const active = plates.has(p);
             return (
               <TouchableOpacity
@@ -103,7 +124,7 @@ export default function BarbellSetupScreen() {
                 onPress={() => togglePlate(p)}
               >
                 <AppText style={[styles.plateText, active && styles.plateTextActive]}>
-                  {p % 1 === 0 ? `${p}` : `${p}`} kg
+                  {p} {unit}
                 </AppText>
               </TouchableOpacity>
             );

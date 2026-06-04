@@ -121,7 +121,7 @@ struct ActiveTrackingView: View {
                     .background(TRAKColor.primaryTint)
                     .clipShape(Capsule())
             }
-            Text("/ side")
+            Text("\(unitLabel) / side")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundColor(.secondary)
         }

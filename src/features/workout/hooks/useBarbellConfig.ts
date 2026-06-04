@@ -4,6 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const STORAGE_KEY = '@trak/barbell_config';
 
 export const ALL_PLATE_SIZES = [0.5, 1.25, 2.5, 5, 10, 15, 20, 25] as const;
+export const ALL_PLATE_SIZES_LB = [2.5, 5, 10, 25, 35, 45] as const;
+export const LB_TO_KG = 0.453592;
+export const KG_TO_LB = 2.20462;
 
 export interface BarbellConfig {
   barWeight: number;
