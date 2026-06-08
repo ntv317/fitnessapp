@@ -16,6 +16,8 @@ struct WorkoutState {
     var weightStep: Double = 2.5     // increment for +/- and the Digital Crown
     var plateBreakdown: [Double] = [] // plates per side, largest-first; empty = no config
     var showWeightConversion: Bool = false
+    var showPlateBreakdown: Bool = true
+    var accentColor: String = "#a83300"
 
     mutating func update(from dict: [String: Any]) {
         if let v = dict["exerciseName"] as? String { exerciseName = v }
@@ -33,5 +35,7 @@ struct WorkoutState {
         if let v = dict["weightStep"] as? Double { weightStep = v }
         if let v = dict["plateBreakdown"] as? [Double] { plateBreakdown = v }
         if let v = dict["showWeightConversion"] as? Bool { showWeightConversion = v }
+        if let v = dict["showPlateBreakdown"] as? Bool { showPlateBreakdown = v }
+        if let v = dict["accentColor"] as? String { accentColor = v }
     }
 }

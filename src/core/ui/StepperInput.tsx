@@ -49,6 +49,13 @@ export function StepperInput({
     onChangeText(String(rounded));
   };
 
+  const handleChangeText = (text: string) => {
+    const filtered = decimal
+      ? text.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1')
+      : text.replace(/[^0-9]/g, '');
+    onChangeText(filtered);
+  };
+
   return (
     <View
       style={[
@@ -74,7 +81,7 @@ export function StepperInput({
 
       <TextInput
         value={value}
-        onChangeText={onChangeText}
+        onChangeText={handleChangeText}
         placeholder={placeholder}
         placeholderTextColor={Colors.textMuted}
         keyboardType={keyboardType ?? (decimal ? 'decimal-pad' : 'number-pad')}

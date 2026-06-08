@@ -11,34 +11,67 @@ interface Props {
   unit: 'kg' | 'lbs';
 }
 
+function chipDiameter(plateKg: number): number {
+  const MIN_D = 20, MAX_D = 52, MIN_KG = 1.25, MAX_KG = 20;
+  const clamped = Math.max(MIN_KG, Math.min(MAX_KG, plateKg));
+  return Math.round(MIN_D + ((clamped - MIN_KG) / (MAX_KG - MIN_KG)) * (MAX_D - MIN_D));
+}
+
+function chipColor(plateKg: number): string {
+  return plateKg >= 15 ? Colors.primary : Colors.textSecondary;
+}
+
 export function PlateChips({ plates, barWeight, totalWeight, exact, unit }: Props) {
   const { conversionHint, fromKg } = useUnit();
   if (plates.length === 0) return null;
 
+  const totalRounded = Math.round(totalWeight * 10) / 10;
+  const hint = conversionHint(totalWeight);
+
   return (
     <View style={styles.card}>
-      <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.label}>
-        Plates per side
-      </AppText>
-      <View style={styles.row}>
+      {/* Header: label left, total weight right */}
+      <View style={styles.header}>
+        <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.label}>
+          Plates per side
+        </AppText>
+        <AppText variant="labelMono" color={Colors.textSecondary}>
+          {totalRounded} {unit}{hint ? `  ${hint}` : ''}
+        </AppText>
+      </View>
+
+      {/* Proportional circular plate chips */}
+      <View style={styles.chipsRow}>
         {plates.map((p, i) => {
-          const d = fromKg(p);
-          const label = d % 1 === 0 ? String(Math.round(d)) : String(Math.round(d * 100) / 100);
+          const d = chipDiameter(p);
+          const color = chipColor(p);
+          const displayVal = fromKg(p);
+          const label =
+            displayVal % 1 === 0
+              ? String(Math.round(displayVal))
+              : String(Math.round(displayVal * 100) / 100);
+          const fontSize = d >= 40 ? 12 : d >= 30 ? 11 : 10;
           return (
-            <View key={i} style={styles.chip}>
-              <AppText style={styles.chipText}>{label}</AppText>
+            <View
+              key={i}
+              style={[styles.chip, { width: d, height: d, borderRadius: d / 2, borderColor: color, backgroundColor: color + '1a' }]}
+            >
+              <AppText style={[styles.chipText, { fontSize, color, lineHeight: d }]}>
+                {label}
+              </AppText>
             </View>
           );
         })}
       </View>
+
+      {/* Footer: bar weight + nearest indicator */}
       <View style={styles.footer}>
         <AppText variant="labelMono" color={Colors.textMuted}>
-          Bar {barWeight} {unit} · Total {Math.round(totalWeight * 10) / 10} {unit}
-          {conversionHint(totalWeight) ? `  ${conversionHint(totalWeight)}` : ''}
+          Bar {barWeight} {unit}
         </AppText>
         {!exact && (
-          <AppText variant="labelMono" color={Colors.warning} style={{ marginLeft: Spacing.sm }}>
-            (nearest)
+          <AppText variant="labelMono" color={Colors.warning}>
+            · nearest
           </AppText>
         )}
       </View>
@@ -51,31 +84,34 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceSunken,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm + 2,
     gap: 4,
   },
-  label: {
-    fontSize: 11,
-  },
-  row: {
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  label: { fontSize: 11 },
+  chipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 4,
+    gap: 6,
   },
   chip: {
-    backgroundColor: Colors.primaryTint,
-    borderRadius: Radius.full,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
   },
   chipText: {
     fontFamily: Fonts.monoBold,
-    fontSize: 12,
-    color: Colors.primary,
-    lineHeight: 18,
+    textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 4,
   },
 });

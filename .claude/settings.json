@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"SYSTEM REMINDER: You MUST begin your response with the active model name, e.g. \\\"Claude Sonnet 4.6\\\". No exceptions.\"}}'"
+          }
+        ]
+      }
+    ]
+  }
+}

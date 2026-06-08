@@ -5,6 +5,7 @@ import SwiftUI
 struct RestView: View {
     @EnvironmentObject var session: WatchSessionManager
 
+    private var accent: Color { Color(hex: session.workoutState.accentColor) }
     private var total: Int { max(1, session.workoutState.restDuration) }
     private var progress: Double {
         min(1, max(0, Double(session.restTimeRemaining) / Double(total)))
@@ -22,14 +23,14 @@ struct RestView: View {
                     .font(.system(size: 13, weight: .bold))
                     .tracking(1)
             }
-            .foregroundColor(TRAKColor.primary)
+            .foregroundColor(accent)
 
             ZStack {
                 Circle()
                     .stroke(TRAKColor.cardBorder, lineWidth: 6)
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(TRAKColor.primary, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                    .stroke(accent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 0.25), value: progress)
                 Text(countdown)
@@ -40,7 +41,7 @@ struct RestView: View {
             VStack(spacing: 1) {
                 Text("UP NEXT")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundColor(TRAKColor.primary)
+                    .foregroundColor(accent)
                 Text(session.workoutState.exerciseName)
                     .font(.system(size: 14, weight: .bold))
                     .lineLimit(1)

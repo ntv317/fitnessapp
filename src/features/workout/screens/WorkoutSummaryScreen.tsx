@@ -18,7 +18,7 @@ export default function WorkoutSummaryScreen() {
 
   const [endTime] = useState(Date.now);
   const startTime = parseInt(params.startTime ?? '0') || endTime;
-  const accent = params.color ?? Colors.primary;
+  const accent = params.color || Colors.primary;
   const session = getSession();
 
   const durationMins = Math.max(1, Math.round((endTime - startTime) / 60000));
@@ -29,7 +29,7 @@ export default function WorkoutSummaryScreen() {
 
   const handleDone = () => {
     clearSession();
-    router.back();
+    router.replace('/(tabs)');
   };
 
   return (

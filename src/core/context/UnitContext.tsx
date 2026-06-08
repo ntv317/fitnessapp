@@ -12,6 +12,7 @@ export type WeightUnit = 'kg' | 'lbs';
 
 const STORAGE_KEY = '@fitness/weightUnit';
 const CONVERSION_KEY = '@fitness/showConversion';
+const PLATE_BREAKDOWN_KEY = '@fitness/showPlateBreakdown';
 const KG_PER_LB = 0.45359237;
 const LB_PER_KG = 1 / KG_PER_LB;
 
@@ -29,6 +30,9 @@ interface UnitContextValue {
   /** Whether to show the secondary-unit conversion hint alongside weights. */
   showConversion: boolean;
   toggleConversion: () => void;
+  /** Whether to show the plate breakdown row on the watch and exercise screen. */
+  showPlateBreakdown: boolean;
+  togglePlateBreakdown: () => void;
   /** Returns "≈ X lbs" or "≈ X kg" for a value already in the display unit. Null when disabled or value ≤ 0. */
   conversionHint: (displayUnitValue: number) => string | null;
 }
@@ -42,6 +46,7 @@ function roundHalf(n: number): number {
 export function UnitProvider({ children }: { children: React.ReactNode }) {
   const [unit, setUnitState] = useState<WeightUnit>('kg');
   const [showConversion, setShowConversion] = useState(false);
+  const [showPlateBreakdown, setShowPlateBreakdown] = useState(true);
 
   // Hydrate persisted preferences once.
   useEffect(() => {
@@ -50,6 +55,9 @@ export function UnitProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {});
     AsyncStorage.getItem(CONVERSION_KEY)
       .then((v) => { if (v === 'true') setShowConversion(true); })
+      .catch(() => {});
+    AsyncStorage.getItem(PLATE_BREAKDOWN_KEY)
+      .then((v) => { if (v === 'false') setShowPlateBreakdown(false); })
       .catch(() => {});
   }, []);
 
@@ -74,6 +82,14 @@ export function UnitProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const togglePlateBreakdown = useCallback(() => {
+    setShowPlateBreakdown((prev) => {
+      const next = !prev;
+      AsyncStorage.setItem(PLATE_BREAKDOWN_KEY, String(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
   const value = useMemo<UnitContextValue>(() => {
     const fromKg = (kg: number) => (unit === 'kg' ? kg : roundHalf(kg * LB_PER_KG));
     const toKg = (v: number) => (unit === 'kg' ? v : v * KG_PER_LB);
@@ -86,8 +102,8 @@ export function UnitProvider({ children }: { children: React.ReactNode }) {
       if (unit === 'kg') return `≈ ${Math.round(val * LB_PER_KG)} lbs`;
       return `≈ ${(Math.round(val * KG_PER_LB * 10) / 10)} kg`;
     };
-    return { unit, setUnit, toggle, fromKg, toKg, display, label: unit, showConversion, toggleConversion, conversionHint };
-  }, [unit, setUnit, toggle, showConversion, toggleConversion]);
+    return { unit, setUnit, toggle, fromKg, toKg, display, label: unit, showConversion, toggleConversion, showPlateBreakdown, togglePlateBreakdown, conversionHint };
+  }, [unit, setUnit, toggle, showConversion, toggleConversion, showPlateBreakdown, togglePlateBreakdown]);
 
   return <UnitContext.Provider value={value}>{children}</UnitContext.Provider>;
 }
