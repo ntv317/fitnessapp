@@ -1,0 +1,9 @@
+# Stores the distribution certificate + App Store provisioning profiles,
+# encrypted, in a separate PRIVATE git repo (set MATCH_GIT_URL in env).
+git_url(ENV["MATCH_GIT_URL"])
+storage_mode("git")
+
+type("appstore")
+
+app_identifier(["io.liftr.app", "io.liftr.app.watchkitapp"])
+team_id("HF9JSGH879")
