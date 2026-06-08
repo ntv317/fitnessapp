@@ -2,6 +2,7 @@ import SwiftUI
 
 enum TRAKColor {
     static let primary     = Color(hex: "a83300")
+    static let primaryTint = Color(hex: "ffdbd0").opacity(0.85)
     static let tertiary    = Color(hex: "006b27")
     static let cardBg      = Color.white.opacity(0.05)
     static let cardBorder  = Color.white.opacity(0.10)

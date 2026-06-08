@@ -88,7 +88,45 @@ struct ActiveTrackingView: View {
                     )
                 CircleStepButton(icon: "plus") { weight = min(1000, weight + step) }
             }
+            if !session.workoutState.plateBreakdown.isEmpty {
+                plateRow
+            }
+            if session.workoutState.showWeightConversion && weight > 0 {
+                conversionRow
+            }
         }
+    }
+
+    private var conversionRow: some View {
+        let converted: String = session.workoutState.unit == "kg"
+            ? "≈ \(Int((weight * 2.20462).rounded())) lbs"
+            : "≈ \(String(format: "%.1f", weight * 0.453592)) kg"
+        return Text(converted)
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundColor(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+    }
+
+    private var plateRow: some View {
+        HStack(spacing: 3) {
+            ForEach(session.workoutState.plateBreakdown, id: \.self) { plate in
+                Text(plate.truncatingRemainder(dividingBy: 1) == 0
+                     ? "\(Int(plate))"
+                     : String(format: "%g", plate))
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundColor(TRAKColor.primary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(TRAKColor.primaryTint)
+                    .clipShape(Capsule())
+            }
+            Text("\(unitLabel) / side")
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
     }
 
     private var repsCard: some View {

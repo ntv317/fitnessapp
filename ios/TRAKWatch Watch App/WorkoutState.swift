@@ -14,6 +14,8 @@ struct WorkoutState {
     var workoutName: String = ""
     var unit: String = "kg"          // weight unit mirrored from the phone
     var weightStep: Double = 2.5     // increment for +/- and the Digital Crown
+    var plateBreakdown: [Double] = [] // plates per side, largest-first; empty = no config
+    var showWeightConversion: Bool = false
 
     mutating func update(from dict: [String: Any]) {
         if let v = dict["exerciseName"] as? String { exerciseName = v }
@@ -29,5 +31,7 @@ struct WorkoutState {
         if let v = dict["workoutName"] as? String { workoutName = v }
         if let v = dict["unit"] as? String { unit = v }
         if let v = dict["weightStep"] as? Double { weightStep = v }
+        if let v = dict["plateBreakdown"] as? [Double] { plateBreakdown = v }
+        if let v = dict["showWeightConversion"] as? Bool { showWeightConversion = v }
     }
 }
