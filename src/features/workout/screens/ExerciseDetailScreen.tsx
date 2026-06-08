@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, ScrollView, TouchableOpacity, StyleSheet, ActionSheetIOS } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText, Card, StepperInput } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
 import { useExercises, useAllDays } from '../hooks/useExercises';
-import { useAutoSaveSet, useWorkoutLogs } from '../hooks/useWorkoutLogs';
+import { useAutoSaveSet, useWorkoutLogs, historyKey } from '../hooks/useWorkoutLogs';
+import { useQueryClient } from '@tanstack/react-query';
 import { useWatchSync, type WatchSetLogged } from '../hooks/useWatchSync';
 import { useBarbellConfig } from '../hooks/useBarbellConfig';
 import { calculatePlates } from '@/core/utils/plateCalculator';
@@ -20,10 +22,14 @@ import { formatWeight } from '@/core/utils/format';
 const MARGIN = 20; // margin-mobile
 
 interface SetState {
+  id: number;
   weight: string; // as typed, in active unit
   reps: string;
   done: boolean;
 }
+
+let _setIdCounter = 0;
+const nextSetId = () => ++_setIdCounter;
 
 interface CelebrateData {
   exerciseName: string;
@@ -83,8 +89,8 @@ function ExerciseCompleteOverlay({
 
 // ── Full-screen rest timer ────────────────────────────────────────────────────
 
-const RING_SIZE = 270;
-const RING_STROKE = 12;
+const RING_SIZE = 288;
+const RING_STROKE = 14;
 const RING_R = (RING_SIZE - RING_STROKE) / 2;
 const RING_C = 2 * Math.PI * RING_R;
 
@@ -218,15 +224,20 @@ export default function ExerciseDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; color?: string; day?: string; startTime?: string }>();
   const exerciseId = Number(params.id);
-  const accent = params.color ?? Colors.primary;
+  const accent = params.color || Colors.primary;
   const startTimeRef = useRef(params.startTime ? parseInt(params.startTime) : Date.now());
   const [celebrateData, setCelebrateData] = useState<CelebrateData | null>(null);
 
-  const { unit, toKg, fromKg, conversionHint, showConversion } = useUnit();
+  const { unit, toKg, fromKg, conversionHint, showConversion, showPlateBreakdown } = useUnit();
   const { config: barbellConfig } = useBarbellConfig();
   const saveSet = useAutoSaveSet();
+  const qc = useQueryClient();
   const { data: exercises = [] } = useExercises();
   const { data: history = [] } = useWorkoutLogs(exerciseId);
+
+  useFocusEffect(useCallback(() => {
+    qc.invalidateQueries({ queryKey: historyKey(exerciseId) });
+  }, [exerciseId, qc]));
   const { data: allDays = [] } = useAllDays();
   const exercise = exercises.find((e) => e.id === exerciseId);
 
@@ -237,7 +248,7 @@ export default function ExerciseDetailScreen() {
     curIdx >= 0 && curIdx < dayExercises.length - 1 ? dayExercises[curIdx + 1] : null;
 
   const [sets, setSets] = useState<SetState[]>(
-    Array.from({ length: 3 }, () => ({ weight: '', reps: '', done: false })),
+    Array.from({ length: 3 }, () => ({ id: nextSetId(), weight: '', reps: '', done: false })),
   );
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
   const [restKey, setRestKey] = useState(0);
@@ -248,6 +259,26 @@ export default function ExerciseDetailScreen() {
 
   // Becomes true once the user types/steps/logs, so auto pre-fill stops.
   const touchedRef = useRef(false);
+
+  // When the user changes their unit preference mid-session, convert every
+  // typed weight string from the old unit to the new one so the physical load
+  // stays the same (100 kg → 220 lbs, not 100 lbs).
+  const prevUnitRef = useRef(unit);
+  useEffect(() => {
+    const prevUnit = prevUnitRef.current;
+    prevUnitRef.current = unit;
+    if (prevUnit === unit) return;
+    const KG_PER_LB = 0.45359237;
+    const oldToKg = (v: number) => prevUnit === 'kg' ? v : v * KG_PER_LB;
+    setSets(prev => prev.map(s => {
+      const typed = parseFloat(s.weight);
+      if (!typed) return s;
+      const converted = Math.round(fromKg(oldToKg(typed)) * 10) / 10;
+      return { ...s, weight: String(converted) };
+    }));
+  // fromKg already reflects the new unit; prevUnitRef tracks the old one
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unit]);
 
   // Sets logged from the wrist are handled by `completeSet` (defined below, once
   // pushWatchState/rest state exist). We route through a ref so the native
@@ -281,15 +312,15 @@ export default function ExerciseDetailScreen() {
     if (touchedRef.current || !exercise) return;
     const session = history[0];
     const n = exercise.targetSets > 0 ? exercise.targetSets : 3;
-    setSets(
-      Array.from({ length: n }, (_, i) => {
-        // Match by setOrder (1-based) so set 1 gets set 1's values, set 2 gets set 2's, etc.
-        const prev = session?.sets.find((s) => s.setOrder === i + 1) ?? session?.sets[i];
-        const w = prev && prev.weight > 0 ? String(Math.round(fromKg(prev.weight) * 10) / 10) : '';
-        const r = prev && prev.reps > 0 ? String(prev.reps) : '';
-        return { weight: w, reps: r, done: false };
-      }),
-    );
+    const newSets = Array.from({ length: n }, (_, i) => {
+      // Match by setOrder (1-based) so set 1 gets set 1's values, set 2 gets set 2's, etc.
+      const prev = session?.sets.find((s) => s.setOrder === i + 1) ?? session?.sets[i];
+      const w = prev && prev.weight > 0 ? String(Math.round(fromKg(prev.weight) * 10) / 10) : '';
+      const r = prev && prev.reps > 0 ? String(prev.reps) : '';
+      return { id: nextSetId(), weight: w, reps: r, done: false };
+    });
+    setSets(newSets);
+    pushWatchState(newSets, false, exercise.defaultRestSeconds);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise, history, fromKg]);
 
@@ -297,13 +328,15 @@ export default function ExerciseDetailScreen() {
     (updatedSets: SetState[], isResting: boolean, restDuration: number) => {
       const nextIdx = updatedSets.findIndex((s) => !s.done);
       const setNumber = nextIdx >= 0 ? nextIdx + 1 : updatedSets.length;
-      const { plates } = calculatePlates(suggestedWeight, barbellConfig.barWeight, barbellConfig.plates);
+      const typedKg = nextIdx >= 0 ? toKg(parseFloat(updatedSets[nextIdx].weight) || 0) : 0;
+      const weightForPlates = typedKg > 0 ? typedKg : suggestedWeight;
+      const { plates } = calculatePlates(weightForPlates, barbellConfig.barWeight, barbellConfig.plates);
       sendWorkoutState({
         exerciseName: exercise?.name ?? '',
         setNumber,
         totalSets: updatedSets.length,
         suggestedReps,
-        suggestedWeight: fromKg(suggestedWeight), // send in the active unit
+        suggestedWeight: fromKg(weightForPlates),
         restDuration,
         isResting,
         isWorkoutComplete: false,
@@ -311,9 +344,11 @@ export default function ExerciseDetailScreen() {
         weightStep,
         plateBreakdown: plates.map(p => Math.round(fromKg(p) * 10) / 10),
         showWeightConversion: showConversion,
+        showPlateBreakdown,
+        accentColor: accent,
       });
     },
-    [exercise, suggestedReps, suggestedWeight, sendWorkoutState, fromKg, unit, weightStep, barbellConfig, showConversion],
+    [exercise, suggestedReps, suggestedWeight, sendWorkoutState, toKg, fromKg, unit, weightStep, barbellConfig, showConversion],
   );
 
   // Start session tracking on the very first exercise (no startTime in params)
@@ -325,7 +360,7 @@ export default function ExerciseDetailScreen() {
   // Push initial state when exercise loads
   useEffect(() => {
     if (!exercise) return;
-    pushWatchState(sets, false, exercise.isCompound ? 150 : 75);
+    pushWatchState(sets, false, exercise.defaultRestSeconds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise?.id]);
 
@@ -339,11 +374,11 @@ export default function ExerciseDetailScreen() {
       touchedRef.current = true;
       const display = String(Math.round(fromKg(weightKg) * 10) / 10);
       const updatedSets = setsRef.current.map((r, i) =>
-        i === index ? { weight: display, reps: String(repsNum), done: true } : r,
+        i === index ? { ...r, weight: display, reps: String(repsNum), done: true } : r,
       );
       setSets(updatedSets);
       saveSet(exerciseId, index + 1, repsNum, weightKg).catch(() => {});
-      const rest = exercise?.isCompound ? 150 : 75;
+      const rest = exercise?.defaultRestSeconds ?? 75;
       setRestSeconds(rest);
       setRestKey((k) => k + 1);
       pushWatchState(updatedSets, true, rest);
@@ -453,18 +488,63 @@ export default function ExerciseDetailScreen() {
     }
   }, [toKg, history, exercise, accent, params.day]);
 
+  // ••• menu — two-tap protection against accidental mid-lift exits
+  const handleMoreMenu = useCallback(() => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['Cancel', 'Finish Workout'], cancelButtonIndex: 0 },
+      (index) => { if (index === 1) handleFinish(); },
+    );
+  }, [handleFinish]);
+
+  const watchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
   const updateField = (index: number, field: 'weight' | 'reps', value: string) => {
     touchedRef.current = true;
-    setSets((prev) =>
-      prev.map((s, i) => (i === index ? { ...s, [field]: value, done: false } : s)),
-    );
+    const newSets = setsRef.current.map((s, i) => (i === index ? { ...s, [field]: value, done: false } : s));
+    setSets(newSets);
+    if (field === 'weight') {
+      clearTimeout(watchDebounceRef.current);
+      watchDebounceRef.current = setTimeout(() => {
+        pushWatchState(newSets, restSeconds != null, exercise?.defaultRestSeconds ?? 75);
+      }, 200);
+    }
   };
 
   const addSet = () =>
-    setSets((prev) => [...prev, { weight: '', reps: '', done: false }]);
+    setSets((prev) => [...prev, { id: nextSetId(), weight: '', reps: '', done: false }]);
+
+  const [undoData, setUndoData] = useState<{ set: SetState; index: number } | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const deleteSet = useCallback((index: number) => {
+    const deleted = setsRef.current[index];
+    setSets((prev) => prev.filter((_, i) => i !== index));
+    clearTimeout(undoTimerRef.current);
+    setUndoData({ set: deleted, index });
+    undoTimerRef.current = setTimeout(() => setUndoData(null), 3000);
+  }, []);
+
+  const undoDelete = useCallback(() => {
+    if (!undoData) return;
+    clearTimeout(undoTimerRef.current);
+    setSets((prev) => {
+      const next = [...prev];
+      next.splice(undoData.index, 0, undoData.set);
+      return next;
+    });
+    setUndoData(null);
+  }, [undoData]);
 
   // "Up next" shown on the rest timer: the next set, or the next exercise once
   // every set in this exercise is done.
+  // Compute plates once; used to suppress the redundant conversion hint when the card is visible.
+  const activePlateResult = (() => {
+    const activeW = parseFloat(sets[activeIdx]?.weight ?? '') || 0;
+    if (activeW <= 0 || barbellConfig.plates.length === 0) return null;
+    const r = calculatePlates(toKg(activeW), barbellConfig.barWeight, barbellConfig.plates);
+    return r.plates.length > 0 ? r : null;
+  })();
+
   const restAllDone = sets.length > 0 && sets.every((s) => s.done);
   const restNextIdx = sets.findIndex((s) => !s.done);
   const restUpTitle = restAllDone
@@ -495,10 +575,12 @@ export default function ExerciseDetailScreen() {
             Workout
           </AppText>
         </View>
-        <TouchableOpacity style={styles.finishBtn} onPress={handleFinish}>
-          <AppText variant="bodyMd" color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>
-            Finish
-          </AppText>
+        <TouchableOpacity
+          onPress={handleMoreMenu}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          style={styles.moreBtn}
+        >
+          <Ionicons name="ellipsis-horizontal" size={22} color={Colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -541,49 +623,59 @@ export default function ExerciseDetailScreen() {
           {sets.map((s, i) => {
             const active = i === activeIdx;
             return (
-              <View
-                key={i}
-                style={[
-                  styles.row,
-                  active && styles.rowActive,
-                  s.done && styles.rowDone,
-                ]}
-              >
-                <AppText variant="dataInput" color={Colors.textSecondary} style={styles.colSet}>{i + 1}</AppText>
-                <View style={styles.colWeight}>
-                  <StepperInput
-                    value={s.weight}
-                    onChangeText={(v) => updateField(i, 'weight', v)}
-                    step={weightStep}
-                    decimal
-                    editable={!s.done}
-                    color={accent}
-                  />
-                  {active && conversionHint(parseFloat(s.weight) || 0) ? (
-                    <AppText variant="labelMono" color={Colors.textMuted} style={styles.convHint}>
-                      {conversionHint(parseFloat(s.weight) || 0)}
-                    </AppText>
-                  ) : null}
-                </View>
-                <View style={styles.colReps}>
-                  <StepperInput
-                    value={s.reps}
-                    onChangeText={(v) => updateField(i, 'reps', v)}
-                    step={1}
-                    editable={!s.done}
-                    color={accent}
-                  />
-                </View>
-                <View style={styles.colDone}>
+              <Swipeable
+                key={s.id}
+                enabled={!s.done && restSeconds == null}
+                friction={2}
+                rightThreshold={40}
+                renderRightActions={() => (
                   <TouchableOpacity
-                    style={[styles.checkbox, s.done && { borderColor: accent }]}
-                    onPress={() => toggleDone(i)}
-                    activeOpacity={0.7}
+                    style={styles.deleteAction}
+                    onPress={() => deleteSet(i)}
+                    activeOpacity={0.8}
                   >
-                    {s.done && <Ionicons name="checkmark" size={22} color={accent} />}
+                    <Ionicons name="trash-outline" size={20} color={Colors.white} />
                   </TouchableOpacity>
+                )}
+              >
+                <View
+                  style={[
+                    styles.row,
+                    active && { borderColor: accent },
+                    s.done && styles.rowDone,
+                  ]}
+                >
+                  <AppText variant="dataInput" color={Colors.textSecondary} style={styles.colSet}>{i + 1}</AppText>
+                  <View style={styles.colWeight}>
+                    <StepperInput
+                      value={s.weight}
+                      onChangeText={(v) => updateField(i, 'weight', v)}
+                      step={weightStep}
+                      decimal
+                      editable={!s.done}
+                      color={accent}
+                    />
+                  </View>
+                  <View style={styles.colReps}>
+                    <StepperInput
+                      value={s.reps}
+                      onChangeText={(v) => updateField(i, 'reps', v)}
+                      step={1}
+                      editable={!s.done}
+                      color={accent}
+                    />
+                  </View>
+                  <View style={styles.colDone}>
+                    <TouchableOpacity
+                      style={[styles.checkbox, s.done && { borderColor: accent }]}
+                      onPress={() => toggleDone(i)}
+                      activeOpacity={0.7}
+                    >
+                      {s.done && <Ionicons name="checkmark" size={22} color={accent} />}
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
+              </Swipeable>
             );
           })}
 
@@ -593,23 +685,24 @@ export default function ExerciseDetailScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Conversion hint — hidden when plate card is visible (card footer already shows it) */}
+        {!activePlateResult && activeIdx >= 0 &&
+          conversionHint(parseFloat(sets[activeIdx]?.weight ?? '') || 0) ? (
+          <AppText variant="labelMono" color={Colors.textMuted} style={styles.convHintBelowTable}>
+            {conversionHint(parseFloat(sets[activeIdx]?.weight ?? '') || 0)}
+          </AppText>
+        ) : null}
+
         {/* Plate calculator */}
-        {(() => {
-          const activeW = parseFloat(sets[activeIdx]?.weight ?? '') || 0;
-          if (activeW <= 0 || barbellConfig.plates.length === 0) return null;
-          const weightKg = toKg(activeW);
-          const result = calculatePlates(weightKg, barbellConfig.barWeight, barbellConfig.plates);
-          if (result.plates.length === 0) return null;
-          return (
-            <PlateChips
-              plates={result.plates}
-              barWeight={Math.round(fromKg(barbellConfig.barWeight) * 10) / 10}
-              totalWeight={fromKg(result.achievable)}
-              exact={result.exact}
-              unit={unit}
-            />
-          );
-        })()}
+        {activePlateResult && (
+          <PlateChips
+            plates={activePlateResult.plates}
+            barWeight={Math.round(fromKg(barbellConfig.barWeight) * 10) / 10}
+            totalWeight={fromKg(activePlateResult.achievable)}
+            exact={activePlateResult.exact}
+            unit={unit}
+          />
+        )}
 
         {/* Progress chart */}
         {history.length >= 2 && (
@@ -658,6 +751,20 @@ export default function ExerciseDetailScreen() {
           onNext={handleCelebrateNext}
         />
       )}
+
+      {/* Undo toast */}
+      {undoData && (
+        <View style={styles.undoToast}>
+          <AppText variant="labelMono" color={Colors.white}>
+            Set {undoData.index + 1} removed
+          </AppText>
+          <TouchableOpacity onPress={undoDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <AppText variant="labelMono" color={accent} style={{ fontFamily: Fonts.sansBold }}>
+              UNDO
+            </AppText>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -691,7 +798,7 @@ const styles = StyleSheet.create({
   restRingWrap: { width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center' },
   restRing: { position: 'absolute', transform: [{ rotate: '-90deg' }] },
   restCountWrap: { alignItems: 'center' },
-  restCountText: { fontSize: 68, lineHeight: 72 },
+  restCountText: { fontSize: 74, lineHeight: 78 },
   restUpNext: { alignItems: 'center' },
   restUpNextMeta: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.xs },
   restDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.textMuted, marginHorizontal: 8 },
@@ -726,11 +833,8 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   appBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  finishBtn: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: 6,
+  moreBtn: {
+    padding: 4,
   },
   scroll: { paddingHorizontal: MARGIN, paddingTop: Spacing.lg, paddingBottom: 64 },
 
@@ -771,12 +875,11 @@ const styles = StyleSheet.create({
     borderRadius: Radius.sm,
     backgroundColor: Colors.surface,
   },
-  rowActive: { borderColor: Colors.primary },
   rowDone: { backgroundColor: '#f7fff2', opacity: 0.85 },
   colSet: { width: COL_SET, textAlign: 'center' },
   colInput: { flex: 1 },
   colWeight: { flex: 1.4, paddingHorizontal: 3, alignItems: 'center' }, // wider — fits decimals like 102.5
-  convHint: { fontSize: 10, marginTop: 1 },
+  convHintBelowTable: { fontSize: 10, textAlign: 'center', marginTop: 4 },
   colReps: { flex: 1, paddingHorizontal: 3 },
   colDone: { width: COL_DONE, alignItems: 'flex-end' },
   checkbox: {
@@ -799,6 +902,32 @@ const styles = StyleSheet.create({
     borderColor: Colors.border,
     borderRadius: Radius.sm,
     marginTop: Spacing.xs,
+  },
+  deleteAction: {
+    backgroundColor: Colors.danger,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 72,
+    borderRadius: Radius.sm,
+    marginLeft: Spacing.sm,
+  },
+  undoToast: {
+    position: 'absolute',
+    bottom: 24,
+    left: MARGIN,
+    right: MARGIN,
+    backgroundColor: Colors.surfaceAlt,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
   },
   section: { marginTop: Spacing.xl },
 

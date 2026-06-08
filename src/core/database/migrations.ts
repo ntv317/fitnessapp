@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { weekStartOf } from '@/core/utils/date';
 
-const DATABASE_VERSION = 5;
+const DATABASE_VERSION = 6;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
@@ -116,6 +116,28 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
     }
 
     version = 5;
+  }
+
+  if (version === 5) {
+    // Add UNIQUE(log_id, set_order) to prevent duplicate sets from a watch+phone race.
+    // SQLite can't add constraints via ALTER TABLE, so we rebuild the table.
+    await db.execAsync(`
+      CREATE TABLE WorkoutSets_new (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        log_id    INTEGER NOT NULL,
+        set_order INTEGER NOT NULL,
+        reps      INTEGER NOT NULL CHECK (reps >= 0),
+        weight    REAL    NOT NULL CHECK (weight >= 0),
+        FOREIGN KEY (log_id) REFERENCES WorkoutLogs (id) ON DELETE CASCADE,
+        UNIQUE (log_id, set_order)
+      );
+      INSERT OR IGNORE INTO WorkoutSets_new (id, log_id, set_order, reps, weight)
+        SELECT id, log_id, set_order, reps, weight FROM WorkoutSets;
+      DROP TABLE WorkoutSets;
+      ALTER TABLE WorkoutSets_new RENAME TO WorkoutSets;
+      CREATE INDEX IF NOT EXISTS idx_sets_log ON WorkoutSets (log_id);
+    `);
+    version = 6;
   }
 
   await db.execAsync(`PRAGMA user_version = ${version};`);

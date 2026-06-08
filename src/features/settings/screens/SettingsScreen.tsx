@@ -10,7 +10,7 @@ const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { unit, toggle, showConversion, toggleConversion } = useUnit();
+  const { unit, toggle, showConversion, toggleConversion, showPlateBreakdown, togglePlateBreakdown } = useUnit();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -56,6 +56,21 @@ export default function SettingsScreen() {
               onValueChange={toggleConversion}
               trackColor={{ false: Colors.surfaceAlt, true: Colors.primaryTint }}
               thumbColor={showConversion ? Colors.primary : Colors.textMuted}
+            />
+          </View>
+          <View style={styles.divider} />
+          <View style={styles.row}>
+            <View style={{ flex: 1, marginRight: Spacing.md }}>
+              <AppText variant="bodyMd">Plate Breakdown</AppText>
+              <AppText variant="labelMono" color={Colors.textMuted} style={{ marginTop: 2 }}>
+                Show plates per side on watch
+              </AppText>
+            </View>
+            <Switch
+              value={showPlateBreakdown}
+              onValueChange={togglePlateBreakdown}
+              trackColor={{ false: Colors.surfaceAlt, true: Colors.primaryTint }}
+              thumbColor={showPlateBreakdown ? Colors.primary : Colors.textMuted}
             />
           </View>
           <View style={styles.divider} />

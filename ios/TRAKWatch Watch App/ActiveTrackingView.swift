@@ -15,9 +15,6 @@ struct ActiveTrackingView: View {
     // only handles active input — a single fitted, non-scrolling layout that
     // adapts to the watch height via the flexible Spacer.
     var body: some View {
-        // One ScrollView holds everything: with the compact sizing it all fits on
-        // larger watches (no scroll); on small watches it scrolls. The Log Set
-        // button is the last item so it's always reachable.
         ScrollView {
             VStack(spacing: 4) {
                 header
@@ -31,8 +28,6 @@ struct ActiveTrackingView: View {
         .onAppear(perform: resetToSuggested)
         .onChange(of: session.workoutState.exerciseName) { _ in resetToSuggested() }
         .onChange(of: session.workoutState.setNumber)    { _ in resetToSuggested() }
-        // Keep the shown value in step with the previous-session (PREV) value
-        // whenever it changes, so the display never drifts from the hint.
         .onChange(of: session.workoutState.suggestedWeight) { _ in
             weight = session.workoutState.suggestedWeight
         }
@@ -70,11 +65,16 @@ struct ActiveTrackingView: View {
     }
 
     private var weightCard: some View {
-        InputCard(leftLabel: "Weight (\(unitLabel))", rightLabel: weightPrev) {
+        let accent = Color(hex: session.workoutState.accentColor)
+        return InputCard(
+            leftLabel: "Weight (\(unitLabel))",
+            rightLabel: weightPrev,
+            rightLabelColor: session.workoutState.suggestedWeight > 0 ? accent : .secondary
+        ) {
             HStack(spacing: 4) {
                 CircleStepButton(icon: "minus") { weight = max(0, weight - step) }
                 Text(weightDisplay)
-                    .font(.system(size: 26, weight: .bold).monospacedDigit())
+                    .font(.system(size: 32, weight: .bold).monospacedDigit())
                     .frame(maxWidth: .infinity)
                     .lineLimit(1)
                     .focusable(!isResting)
@@ -88,7 +88,7 @@ struct ActiveTrackingView: View {
                     )
                 CircleStepButton(icon: "plus") { weight = min(1000, weight + step) }
             }
-            if !session.workoutState.plateBreakdown.isEmpty {
+            if session.workoutState.showPlateBreakdown && !session.workoutState.plateBreakdown.isEmpty {
                 plateRow
             }
             if session.workoutState.showWeightConversion && weight > 0 {
@@ -109,16 +109,17 @@ struct ActiveTrackingView: View {
     }
 
     private var plateRow: some View {
-        HStack(spacing: 3) {
-            ForEach(session.workoutState.plateBreakdown, id: \.self) { plate in
+        let accent = Color(hex: session.workoutState.accentColor)
+        return HStack(spacing: 3) {
+            ForEach(Array(session.workoutState.plateBreakdown.enumerated()), id: \.offset) { _, plate in
                 Text(plate.truncatingRemainder(dividingBy: 1) == 0
                      ? "\(Int(plate))"
                      : String(format: "%g", plate))
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundColor(TRAKColor.primary)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(TRAKColor.primaryTint)
+                    .foregroundColor(accent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(accent.opacity(0.22))
                     .clipShape(Capsule())
             }
             Text("\(unitLabel) / side")
@@ -127,14 +128,20 @@ struct ActiveTrackingView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 4)
+        .padding(.top, 1)
     }
 
     private var repsCard: some View {
-        InputCard(leftLabel: "Reps", rightLabel: repsPrev) {
+        let accent = Color(hex: session.workoutState.accentColor)
+        return InputCard(
+            leftLabel: "Reps",
+            rightLabel: repsPrev,
+            rightLabelColor: session.workoutState.suggestedReps > 0 ? accent : .secondary
+        ) {
             HStack(spacing: 4) {
                 CircleStepButton(icon: "minus") { reps = max(1, reps - 1) }
                 Text("\(reps)")
-                    .font(.system(size: 26, weight: .bold).monospacedDigit())
+                    .font(.system(size: 32, weight: .bold).monospacedDigit())
                     .frame(maxWidth: .infinity)
                     .lineLimit(1)
                 CircleStepButton(icon: "plus") { reps = min(99, reps + 1) }
@@ -199,15 +206,19 @@ struct ActiveTrackingView: View {
 struct InputCard<Content: View>: View {
     let leftLabel: String
     let rightLabel: String
+    var rightLabelColor: Color = .secondary
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         VStack(spacing: 2) {
             HStack {
-                Text(leftLabel); Spacer(); Text(rightLabel)
+                Text(leftLabel)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(rightLabel)
+                    .foregroundColor(rightLabelColor)
             }
             .font(.system(size: 10, design: .monospaced))
-            .foregroundColor(.secondary)
             .padding(.horizontal, 8)
             content()
         }

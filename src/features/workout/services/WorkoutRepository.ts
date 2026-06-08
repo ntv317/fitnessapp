@@ -97,7 +97,7 @@ export class WorkoutRepository implements IWorkoutRepository {
 
   async upsertExercise(input: ExerciseInput): Promise<Exercise> {
     const REST_COMPOUND = 150;
-    const REST_ISOLATION = 90;
+    const REST_ISOLATION = 75;
     const restSeconds =
       input.defaultRestSeconds ??
       (input.isCompound ? REST_COMPOUND : REST_ISOLATION);
@@ -176,15 +176,17 @@ export class WorkoutRepository implements IWorkoutRepository {
   async appendSet(logId: number, exerciseId: number, setOrder: number, reps: number, weight: number): Promise<void> {
     const weekStart = weekStartOf(Date.now());
     await this.db.withTransactionAsync(async () => {
-      await this.db.runAsync(
-        'INSERT INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (?, ?, ?, ?);',
+      const result = await this.db.runAsync(
+        'INSERT OR IGNORE INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (?, ?, ?, ?);',
         [logId, setOrder, reps, weight],
       );
-      await this.db.runAsync(
-        `INSERT INTO WeeklyProgress (exercise_id, week_start, sets_done) VALUES (?, ?, 1)
-         ON CONFLICT(exercise_id, week_start) DO UPDATE SET sets_done = sets_done + 1;`,
-        [exerciseId, weekStart],
-      );
+      if (result.changes > 0) {
+        await this.db.runAsync(
+          `INSERT INTO WeeklyProgress (exercise_id, week_start, sets_done) VALUES (?, ?, 1)
+           ON CONFLICT(exercise_id, week_start) DO UPDATE SET sets_done = sets_done + 1;`,
+          [exerciseId, weekStart],
+        );
+      }
     });
   }
 

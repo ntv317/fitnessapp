@@ -28,6 +28,8 @@ export interface WatchWorkoutState {
   weightStep: number; // +/- and Digital Crown increment, in the active unit
   plateBreakdown: number[]; // plates per side, largest-first; empty = no config
   showWeightConversion: boolean;
+  showPlateBreakdown: boolean;
+  accentColor: string; // hex color for the active day, e.g. "#a83300"
 }
 
 export interface WatchSetLogged {

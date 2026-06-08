@@ -14,6 +14,20 @@
 - No comments unless the WHY is non-obvious
 - No emojis in code or output unless asked
 
+## Coding Behaviour
+
+**Think before coding.**
+State assumptions explicitly. If multiple interpretations exist, surface them — don't pick silently. If something is unclear, stop and ask before writing a line.
+
+**Simplicity first.**
+Minimum code that solves the problem. No speculative features, no abstractions for single-use code, no error handling for impossible scenarios. If it could be 50 lines, don't write 200.
+
+**Surgical changes.**
+Touch only what the task requires. Don't improve adjacent code, reformat, or refactor things that aren't broken. Match existing style. Remove imports/variables made unused by *your* changes; leave pre-existing dead code alone unless asked.
+
+**Goal-driven execution.**
+Before multi-step tasks, state a brief plan with a verifiable check per step. Run TSC, build, and screenshot after every non-trivial change. Don't report done until verified.
+
 ## Design
 
 **Use Stitch** (MCP: `mcp__stitch__*`) for any new screen or significant UI redesign **before** writing code:
