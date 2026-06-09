@@ -98,15 +98,14 @@ export interface PageOptions {
 
 // ── AI IMPORT DTOs (Zod-validated at the ImportService boundary) ──────────────
 
-export const AISetSchema = z.object({
-  reps: z.number().int().positive(),
-  weight: z.number().nonnegative(),
-});
-
 export const AIExerciseSchema = z.object({
   name: z.string().min(1),
   isCompound: z.boolean().default(false),
-  sets: z.array(AISetSchema).min(1),
+  // Number of working sets. Plan mode uses only this count; session mode
+  // expands it into N identical sets using the reps/weight below.
+  sets: z.number().int().positive(),
+  reps: z.number().int().positive().optional(),
+  weight: z.number().nonnegative().optional(),
 });
 
 export const AIDaySchema = z.object({

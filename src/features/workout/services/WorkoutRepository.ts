@@ -328,7 +328,7 @@ export class WorkoutRepository implements IWorkoutRepository {
             isCompound: item.isCompound,
             isCustom: false,
             dayTag: dayName,
-            targetSets: item.sets.length, // planned set count from the AI plan
+            targetSets: item.sets, // planned set count from the AI plan
           });
           // Preserve import order as sort_order
           await this.db.runAsync(
@@ -337,17 +337,24 @@ export class WorkoutRepository implements IWorkoutRepository {
             [i, exercise.id, dayName],
           );
           if (mode === 'session') {
+            if (item.reps == null || item.weight == null) {
+              throw new Error(`"${item.name}": a session import needs reps and weight.`);
+            }
+            const sets = Array.from({ length: item.sets }, () => ({
+              reps: item.reps as number,
+              weight: item.weight as number,
+            }));
             const header = await this.db.runAsync(
               'INSERT INTO WorkoutLogs (exercise_id, timestamp) VALUES (?, ?);',
               [exercise.id, timestamp],
             );
-            await this.insertSets(header.lastInsertRowId, item.sets);
+            await this.insertSets(header.lastInsertRowId, sets);
             // Keep the weekly counter in sync with imported session sets.
             const ws = weekStartOf(timestamp);
             await this.db.runAsync(
               `INSERT INTO WeeklyProgress (exercise_id, week_start, sets_done) VALUES (?, ?, ?)
                ON CONFLICT(exercise_id, week_start) DO UPDATE SET sets_done = sets_done + excluded.sets_done;`,
-              [exercise.id, ws, item.sets.length],
+              [exercise.id, ws, item.sets],
             );
           }
         }

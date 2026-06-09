@@ -26,7 +26,7 @@ Format:
   {
     "day": "PUSH",
     "exercises": [
-      { "name": "Exercise Name", "isCompound": true, "sets": [{ "reps": 10, "weight": 80 }] }
+      { "name": "Exercise Name", "isCompound": true, "sets": 3 }
     ]
   }
 ]
@@ -34,7 +34,7 @@ Format:
 Rules:
 - Output an array of workout days (e.g. 3–5 days depending on my goal)
 - isCompound: true for multi-joint moves (bench, squat, row, press, deadlift, pull-up); false for single-joint (curl, lateral raise, pushdown, fly)
-- Each set is a separate { reps, weight } entry — weight in kg, use 0 for bodyweight
+- sets: the number of working sets for the exercise (e.g. 3)
 - Day names should be descriptive: PUSH, PULL, LEGS, SHOULDERS, BACK + ARMS, FULL BODY, etc.
 
 My goal: [REPLACE — e.g. "build muscle, 4 days/week, intermediate"]`;
