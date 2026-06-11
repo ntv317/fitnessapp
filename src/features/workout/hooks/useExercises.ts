@@ -44,6 +44,19 @@ export function useUpsertExercise() {
 }
 
 /** Wipe all exercises, days, logs, and sets — full reset to an empty database. */
+export function useClearHistory() {
+  const repo = useRepository();
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => repo.clearHistory(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['exercises'] });
+      qc.invalidateQueries({ queryKey: ['history'] });
+    },
+  });
+}
+
 export function useClearAllData() {
   const repo = useRepository();
   const qc = useQueryClient();

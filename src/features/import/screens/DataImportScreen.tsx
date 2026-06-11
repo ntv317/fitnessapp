@@ -9,7 +9,6 @@ import {
   ActivityIndicator,
   Platform,
   Share,
-  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,7 +16,7 @@ import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { ImportService } from '../services/ImportService';
 import { useRepository } from '@/features/workout/hooks/useRepository';
 import { useQueryClient } from '@tanstack/react-query';
-import { EXERCISES_KEY, useClearAllData } from '@/features/workout/hooks/useExercises';
+import { EXERCISES_KEY } from '@/features/workout/hooks/useExercises';
 
 const AI_PROMPT = `Create a weekly workout plan for me and output it as JSON only — no explanation, no markdown, no code fences.
 
@@ -44,36 +43,11 @@ export default function DataImportScreen() {
   const qc = useQueryClient();
   const service = React.useMemo(() => new ImportService(repo), [repo]);
 
-  const clearAll = useClearAllData();
-
   const [mode, setMode] = useState<'plan' | 'session'>('plan');
   const [json, setJson] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
-
-  const handleClearAll = useCallback(() => {
-    Alert.alert(
-      'Clear all data?',
-      'This permanently deletes every exercise, workout day, and logged session. This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete everything',
-          style: 'destructive',
-          onPress: () => {
-            clearAll.mutate(undefined, {
-              onSuccess: () => {
-                setStatus('ok');
-                setMessage('✓ All data cleared — import your plan to start fresh.');
-                setJson('');
-              },
-            });
-          },
-        },
-      ],
-    );
-  }, [clearAll]);
 
   const copyPrompt = useCallback(async () => {
     try {
@@ -208,29 +182,6 @@ export default function DataImportScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Danger zone */}
-        <View style={styles.dangerZone}>
-          <Text style={styles.dangerLabel}>DANGER ZONE</Text>
-          <TouchableOpacity
-            style={styles.dangerBtn}
-            onPress={handleClearAll}
-            disabled={clearAll.isPending}
-            activeOpacity={0.7}
-          >
-            {clearAll.isPending ? (
-              <ActivityIndicator color={Colors.danger} />
-            ) : (
-              <>
-                <Ionicons name="trash-outline" size={16} color={Colors.danger} style={{ marginRight: 6 }} />
-                <Text style={styles.dangerBtnText}>Clear all data</Text>
-              </>
-            )}
-          </TouchableOpacity>
-          <Text style={styles.dangerHint}>
-            Wipes every exercise, day, and logged session so you can start from your own imports.
-          </Text>
-        </View>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -303,29 +254,4 @@ const styles = StyleSheet.create({
   importBtnDisabled: { opacity: 0.4 },
   importBtnText: { color: Colors.white, fontSize: FontSize.md, fontWeight: '700' },
 
-  dangerZone: {
-    marginTop: Spacing.xl,
-    paddingTop: Spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  dangerLabel: {
-    color: Colors.textMuted,
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-    letterSpacing: 1,
-    marginBottom: Spacing.sm,
-  },
-  dangerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: Colors.danger,
-    minHeight: 48,
-  },
-  dangerBtnText: { color: Colors.danger, fontSize: FontSize.sm, fontWeight: '700' },
-  dangerHint: { color: Colors.textMuted, fontSize: FontSize.xs, lineHeight: 16, marginTop: Spacing.sm },
 });

@@ -376,6 +376,18 @@ export class WorkoutRepository implements IWorkoutRepository {
 
   // ── Reset ─────────────────────────────────────────────────────────────────
 
+  async clearHistory(): Promise<void> {
+    // Keeps Exercises / WorkoutDays / ExerciseDays. WorkoutSets cascade from
+    // WorkoutLogs; WeeklyProgress is cleared explicitly since exercises remain.
+    await this.db.withTransactionAsync(async () => {
+      await this.db.execAsync(`
+        DELETE FROM WorkoutSets;
+        DELETE FROM WorkoutLogs;
+        DELETE FROM WeeklyProgress;
+      `);
+    });
+  }
+
   async clearAllData(): Promise<void> {
     // Order matters: WorkoutLogs → Exercises is ON DELETE RESTRICT, so logs must
     // go before exercises. (ExerciseDays cascades from Exercises, but we delete

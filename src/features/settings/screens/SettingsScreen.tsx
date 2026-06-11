@@ -1,16 +1,59 @@
-import { View, TouchableOpacity, StyleSheet, Switch } from 'react-native';
+import { useCallback } from 'react';
+import { View, TouchableOpacity, StyleSheet, Switch, ActionSheetIOS, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/core/ui/AppText';
 import { Colors, Spacing, Radius, Fonts, FontSize } from '@/core/theme';
 import { useUnit } from '@/core/context/UnitContext';
+import { useClearHistory, useClearAllData } from '@/features/workout/hooks/useExercises';
 
 const APP_VERSION = '1.0.0';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { unit, toggle, showConversion, toggleConversion, showPlateBreakdown, togglePlateBreakdown } = useUnit();
+  const clearHistory = useClearHistory();
+  const clearAll = useClearAllData();
+
+  const confirmClearHistory = useCallback(() => {
+    Alert.alert(
+      'Clear workout history?',
+      'This permanently deletes every logged session and your weekly progress. Your exercises and plan are kept. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete history', style: 'destructive', onPress: () => clearHistory.mutate() },
+      ],
+    );
+  }, [clearHistory]);
+
+  const confirmClearAll = useCallback(() => {
+    Alert.alert(
+      'Clear everything?',
+      'This permanently deletes every exercise, workout day, and logged session. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete everything', style: 'destructive', onPress: () => clearAll.mutate() },
+      ],
+    );
+  }, [clearAll]);
+
+  const handleClearData = useCallback(() => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: 'Clear Data',
+        options: ['Cancel', 'Workout History', 'Everything'],
+        cancelButtonIndex: 0,
+        destructiveButtonIndex: [1, 2],
+      },
+      (index) => {
+        // Defer so the action sheet finishes dismissing before the Alert
+        // presents — presenting mid-dismissal swallows the Alert on iOS.
+        if (index === 1) setTimeout(confirmClearHistory, 0);
+        else if (index === 2) setTimeout(confirmClearAll, 0);
+      },
+    );
+  }, [confirmClearHistory, confirmClearAll]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -76,6 +119,17 @@ export default function SettingsScreen() {
           <View style={styles.divider} />
           <TouchableOpacity style={styles.row} onPress={() => router.push('/barbell-setup')}>
             <AppText variant="bodyMd">Barbell Setup</AppText>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Data */}
+        <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.sectionLabel}>
+          Data
+        </AppText>
+        <View style={styles.group}>
+          <TouchableOpacity style={styles.row} onPress={handleClearData}>
+            <AppText variant="bodyMd" color={Colors.danger}>Clear Data</AppText>
             <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
           </TouchableOpacity>
         </View>

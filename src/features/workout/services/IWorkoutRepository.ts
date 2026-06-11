@@ -43,6 +43,9 @@ export interface IWorkoutRepository {
    */
   importBatch(payload: AIImportPayload, timestamp: number, mode: 'plan' | 'session'): Promise<void>;
 
+  /** Delete logged sessions and weekly progress, keeping exercises, days, and plan. */
+  clearHistory(): Promise<void>;
+
   /** Wipe every exercise, day, log, and set — a full reset to an empty database. */
   clearAllData(): Promise<void>;
 
