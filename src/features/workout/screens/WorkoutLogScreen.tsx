@@ -7,7 +7,7 @@ import { Colors, Spacing, Fonts } from '@/core/theme';
 import { WEEKLY_PLAN } from '@/core/config/workoutPlan';
 import { useAllDays } from '../hooks/useExercises';
 import { useWeeklyProgress } from '../hooks/useWorkoutLogs';
-import { dayProgress, DEFAULT_TARGET_SETS, type SetProgress } from '../utils/progress';
+import { dayProgress, weeklyKey, DEFAULT_TARGET_SETS, type SetProgress } from '../utils/progress';
 import { weekStartOf } from '@/core/utils/date';
 import { AppText } from '@/core/ui';
 import type { Exercise } from '@/core/database/types';
@@ -90,7 +90,7 @@ function DayCard({
   onToggle: () => void;
   progress: SetProgress;
   lastWeekProgress: SetProgress;
-  loggedMap: Map<number, number>;
+  loggedMap: Map<string, number>;
   onOpenExercise: (ex: Exercise) => void;
 }) {
   const color = dayColor(dayTag);
@@ -157,7 +157,7 @@ function DayCard({
         <View style={styles.exList}>
           {exercises.map((ex) => {
             const exTarget = ex.targetSets > 0 ? ex.targetSets : DEFAULT_TARGET_SETS;
-            const exDone = Math.min(loggedMap.get(ex.id) ?? 0, exTarget);
+            const exDone = Math.min(loggedMap.get(weeklyKey(ex.id, dayTag)) ?? 0, exTarget);
             return (
               <ExerciseRow
                 key={ex.id}
@@ -256,8 +256,8 @@ export default function WorkoutLogScreen() {
               exercises={exercises}
               expanded={expanded.has(dayTag)}
               onToggle={() => toggle(dayTag)}
-              progress={dayProgress(exercises, loggedMap)}
-              lastWeekProgress={dayProgress(exercises, lastWeekMap)}
+              progress={dayProgress(exercises, loggedMap, dayTag)}
+              lastWeekProgress={dayProgress(exercises, lastWeekMap, dayTag)}
               loggedMap={loggedMap}
               onOpenExercise={(ex) => openExercise(ex, dayColor(dayTag), dayTag)}
             />

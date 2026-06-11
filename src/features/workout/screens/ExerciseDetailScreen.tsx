@@ -10,7 +10,7 @@ import { AppText, Card, StepperInput } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
 import { useExercises, useAllDays } from '../hooks/useExercises';
 import { useAutoSaveSet, useWorkoutLogs, useWeeklyProgress, historyKey } from '../hooks/useWorkoutLogs';
-import { DEFAULT_TARGET_SETS } from '../utils/progress';
+import { DEFAULT_TARGET_SETS, weeklyKey } from '../utils/progress';
 import { weekStartOf } from '@/core/utils/date';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWatchSync, type WatchSetLogged } from '../hooks/useWatchSync';
@@ -291,13 +291,14 @@ export default function ExerciseDetailScreen() {
   // Auto-advance targets the next INCOMPLETE exercise of the day (wrapping back
   // to skipped ones), so the summary only appears once every exercise is done.
   const thisWeekStart = useMemo(() => weekStartOf(Date.now()), []);
-  const { data: weeklyMap = new Map<number, number>() } = useWeeklyProgress(thisWeekStart);
+  const { data: weeklyMap = new Map<string, number>() } = useWeeklyProgress(thisWeekStart);
+  const dayTag = params.day ?? null;
   const dayExercises = allDays.find((d) => d.dayTag === params.day)?.exercises ?? [];
   const curIdx = dayExercises.findIndex((e) => e.id === exerciseId);
   const remaining = dayExercises.filter((e) => {
     if (e.id === exerciseId) return false;
     const target = e.targetSets > 0 ? e.targetSets : DEFAULT_TARGET_SETS;
-    return (weeklyMap.get(e.id) ?? 0) < target;
+    return (weeklyMap.get(weeklyKey(e.id, dayTag)) ?? 0) < target;
   });
   const nextExercise =
     remaining.find((e) => dayExercises.indexOf(e) > curIdx) ?? remaining[0] ?? null;
@@ -365,9 +366,26 @@ export default function ExerciseDetailScreen() {
   // the initial defaults (e.g. weight=0 or reps=10 from an AI-imported session).
   useEffect(() => {
     if (touchedRef.current || !exercise) return;
-    const session = history[0];
-    const n = exercise.targetSets > 0 ? exercise.targetSets : 3;
+    // Sets already logged today FOR THIS DAY re-open as ticked rows with their
+    // logged values; suggestions for the rest come from the last prior session.
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const todayLog = history.find(
+      (l) => l.timestamp >= startOfToday.getTime() && (l.dayTag ?? null) === dayTag,
+    );
+    const session = history.find((l) => l !== todayLog);
+    const target = exercise.targetSets > 0 ? exercise.targetSets : 3;
+    const n = Math.max(target, todayLog?.sets.length ?? 0);
     const newSets = Array.from({ length: n }, (_, i) => {
+      const logged = todayLog?.sets.find((s) => s.setOrder === i + 1);
+      if (logged) {
+        return {
+          id: nextSetId(),
+          weight: String(Math.round(fromKg(logged.weight) * 10) / 10),
+          reps: String(logged.reps),
+          done: true,
+        };
+      }
       // Match by setOrder (1-based) so set 1 gets set 1's values, set 2 gets set 2's, etc.
       const prev = session?.sets.find((s) => s.setOrder === i + 1) ?? session?.sets[i];
       const w = prev && prev.weight > 0 ? String(Math.round(fromKg(prev.weight) * 10) / 10) : '';
@@ -446,7 +464,7 @@ export default function ExerciseDetailScreen() {
         i === index ? { ...r, weight: display, reps: String(repsNum), done: true } : r,
       );
       setSets(updatedSets);
-      saveSet(exerciseId, index + 1, repsNum, weightKg).catch(() => {});
+      saveSet(exerciseId, index + 1, repsNum, weightKg, dayTag).catch(() => {});
       const rest = exercise?.defaultRestSeconds ?? 75;
       setRestSeconds(rest);
       setRestKey((k) => k + 1);
@@ -461,7 +479,7 @@ export default function ExerciseDetailScreen() {
       );
       scheduleRestNotification(rest);
     },
-    [exerciseId, exercise, saveSet, fromKg, pushWatchState, accent, scheduleRestNotification],
+    [exerciseId, exercise, saveSet, fromKg, pushWatchState, accent, scheduleRestNotification, dayTag],
   );
 
   // Wire the watch handler now that completeSet exists. Reassigned each render

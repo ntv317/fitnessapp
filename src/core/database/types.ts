@@ -2,12 +2,6 @@ import { z } from 'zod';
 
 // ── RAW ROW TYPES (SQLite columns, never leave the repository tier) ──────────
 
-export interface WeeklyProgressRow {
-  exercise_id: number;
-  week_start: number; // epoch ms of local Monday 00:00:00
-  sets_done: number;
-}
-
 export interface ExerciseRow {
   id: number;
   name: string;
@@ -26,6 +20,7 @@ export interface WorkoutLogRow {
   id: number;
   exercise_id: number;
   timestamp: number; // epoch ms
+  day_tag: string | null;
 }
 
 export interface WorkoutSetRow {
@@ -58,18 +53,12 @@ export interface WorkoutLog {
   id: number;
   exerciseId: number;
   timestamp: number;
+  dayTag: string | null;
   sets: WorkoutSet[];
 }
 
 export interface WorkoutLogWithExercise extends WorkoutLog {
   exerciseName: string;
-  dayTag: string | null;
-}
-
-export interface WeeklyEntry {
-  exerciseId: number;
-  weekStart: number;
-  setsDone: number;
 }
 
 // ── WRITE INPUTS (no id — the DB assigns it) ─────────────────────────────────
@@ -82,12 +71,6 @@ export interface ExerciseInput {
   dayTag?: string | null;
   /** Planned set count. Omit to leave an existing row's value untouched. */
   targetSets?: number;
-}
-
-export interface LogWorkoutInput {
-  exerciseId: number;
-  timestamp: number;
-  sets: Array<{ reps: number; weight: number }>;
 }
 
 export interface PageOptions {

@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { weekStartOf } from '@/core/utils/date';
 
-const DATABASE_VERSION = 6;
+const DATABASE_VERSION = 7;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
@@ -138,6 +138,45 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_sets_log ON WorkoutSets (log_id);
     `);
     version = 6;
+  }
+
+  if (version === 6) {
+    // Day isolation: an exercise shared by two days (e.g. a press on both Push
+    // and Shoulders) must track progress per day, not per exercise. Logs get a
+    // day_tag, and WeeklyProgress is re-keyed to include it. Historical rows
+    // are attributed to the exercise's primary day (best effort).
+    await db.execAsync(`
+      ALTER TABLE WorkoutLogs ADD COLUMN day_tag TEXT DEFAULT NULL;
+
+      UPDATE WorkoutLogs SET day_tag = (
+        SELECT wd.name FROM ExerciseDays ed
+        JOIN WorkoutDays wd ON wd.id = ed.day_id
+        WHERE ed.exercise_id = WorkoutLogs.exercise_id
+        ORDER BY ed.sort_order ASC, ed.rowid ASC LIMIT 1
+      );
+
+      CREATE TABLE WeeklyProgress_new (
+        exercise_id INTEGER NOT NULL REFERENCES Exercises(id) ON DELETE CASCADE,
+        day_tag     TEXT    NOT NULL DEFAULT '',
+        week_start  INTEGER NOT NULL,
+        sets_done   INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (exercise_id, day_tag, week_start)
+      );
+      INSERT INTO WeeklyProgress_new (exercise_id, day_tag, week_start, sets_done)
+        SELECT wp.exercise_id,
+               COALESCE((
+                 SELECT wd.name FROM ExerciseDays ed
+                 JOIN WorkoutDays wd ON wd.id = ed.day_id
+                 WHERE ed.exercise_id = wp.exercise_id
+                 ORDER BY ed.sort_order ASC, ed.rowid ASC LIMIT 1
+               ), ''),
+               wp.week_start, wp.sets_done
+        FROM WeeklyProgress wp;
+      DROP TABLE WeeklyProgress;
+      ALTER TABLE WeeklyProgress_new RENAME TO WeeklyProgress;
+      CREATE INDEX IF NOT EXISTS idx_weekly_week ON WeeklyProgress (week_start);
+    `);
+    version = 7;
   }
 
   await db.execAsync(`PRAGMA user_version = ${version};`);

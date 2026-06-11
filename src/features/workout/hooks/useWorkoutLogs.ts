@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useRef } from 'react';
 import { useRepository } from './useRepository';
-import type { LogWorkoutInput } from '@/core/database/types';
 
 export const historyKey = (exerciseId: number) => ['history', exerciseId] as const;
 
@@ -25,19 +24,6 @@ export function useAllHistory() {
   });
 }
 
-/** Save a new workout log; invalidates its history cache on success. */
-export function useLogWorkout() {
-  const repo = useRepository();
-  const qc = useQueryClient();
-
-  return useMutation({
-    mutationFn: (input: LogWorkoutInput) => repo.logWorkout(input),
-    onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: historyKey(variables.exerciseId) });
-    },
-  });
-}
-
 /** Sets logged for each exercise in the given week (exerciseId → count). */
 export function useWeeklyProgress(weekStart: number) {
   const repo = useRepository();
@@ -57,36 +43,39 @@ export function useDeleteLog() {
     mutationFn: (logId: number) => repo.deleteLog(logId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['history'] });
+      qc.invalidateQueries({ queryKey: ['weekly'] });
     },
   });
 }
 
 /**
  * Auto-save hook: creates a log on first set, then appends subsequent sets.
- * Returns a saveSet(exerciseId, setOrder, reps, weight) function.
+ * Returns a saveSet(exerciseId, setOrder, reps, weight, dayTag) function.
  */
 export function useAutoSaveSet() {
   const repo = useRepository();
   const qc = useQueryClient();
-  const logIdRef = useRef<Map<number, number>>(new Map());
+  const logIdRef = useRef<Map<string, number>>(new Map());
 
   const saveSet = useCallback(async (
     exerciseId: number,
     setOrder: number,
     reps: number,
     weight: number,
+    dayTag: string | null,
   ) => {
-    let logId = logIdRef.current.get(exerciseId);
+    const cacheKey = `${exerciseId}|${dayTag ?? ''}`;
+    let logId = logIdRef.current.get(cacheKey);
     if (!logId) {
-      const existing = await repo.getTodayLogId(exerciseId);
+      const existing = await repo.getTodayLogId(exerciseId, dayTag);
       if (existing) {
         logId = existing;
       } else {
-        logId = await repo.createLog(exerciseId, Date.now());
+        logId = await repo.createLog(exerciseId, Date.now(), dayTag);
       }
-      logIdRef.current.set(exerciseId, logId);
+      logIdRef.current.set(cacheKey, logId);
     }
-    await repo.appendSet(logId, exerciseId, setOrder, reps, weight);
+    await repo.appendSet(logId, exerciseId, setOrder, reps, weight, dayTag);
     qc.invalidateQueries({ queryKey: ['history'] });
     qc.invalidateQueries({ queryKey: ['weekly'] });
   }, [repo, qc]);

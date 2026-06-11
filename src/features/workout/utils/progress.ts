@@ -1,19 +1,14 @@
-import { startOfWeek } from 'date-fns';
-import type { Exercise, WorkoutLogWithExercise } from '@/core/database/types';
+import type { Exercise } from '@/core/database/types';
 
 /** Safety fallback if an exercise somehow has no stored target. */
 export const DEFAULT_TARGET_SETS = 3;
 
-/** exerciseId → number of sets logged so far this calendar week. */
-export function loggedSetsThisWeek(history: WorkoutLogWithExercise[]): Map<number, number> {
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 }).getTime();
-  const m = new Map<number, number>();
-  for (const log of history) {
-    if (log.timestamp < weekStart) continue;
-    m.set(log.exerciseId, (m.get(log.exerciseId) ?? 0) + log.sets.length);
-  }
-  return m;
-}
+/**
+ * Map key for day-scoped weekly progress. An exercise shared by two days
+ * (e.g. a press on Push and Shoulders) tracks each day independently.
+ */
+export const weeklyKey = (exerciseId: number, dayTag: string | null) =>
+  `${exerciseId}|${dayTag ?? ''}`;
 
 export interface SetProgress {
   done: number;
@@ -30,14 +25,15 @@ export interface SetProgress {
  */
 export function dayProgress(
   exercises: Exercise[],
-  loggedMap: Map<number, number>,
+  loggedMap: Map<string, number>,
+  dayTag: string,
 ): SetProgress {
   let done = 0;
   let total = 0;
   for (const e of exercises) {
     const target = e.targetSets > 0 ? e.targetSets : DEFAULT_TARGET_SETS;
     total += target;
-    done += Math.min(loggedMap.get(e.id) ?? 0, target);
+    done += Math.min(loggedMap.get(weeklyKey(e.id, dayTag)) ?? 0, target);
   }
   return {
     done,

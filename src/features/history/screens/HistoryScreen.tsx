@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
+import { weekStartOf } from '@/core/utils/date';
 import { WEEKLY_PLAN } from '@/core/config/workoutPlan';
 import { useAllHistory, useDeleteLog } from '@/features/workout/hooks/useWorkoutLogs';
 import { useExercises } from '@/features/workout/hooks/useExercises';
@@ -42,10 +43,7 @@ function applyDateFilter(
   if (f.type === 'all') return logs;
   const now = new Date();
   if (f.type === 'week') {
-    const cutoff = new Date(
-      now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0,
-    );
-    return logs.filter((l) => l.timestamp >= cutoff.getTime());
+    return logs.filter((l) => l.timestamp >= weekStartOf(Date.now()));
   }
   if (f.type === 'month') {
     const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();

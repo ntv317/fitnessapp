@@ -38,7 +38,11 @@ class WatchSessionManager: NSObject, ObservableObject {
     func sendFinishWorkout() {
         let payload: [String: Any] = ["type": "finishWorkout"]
         if WCSession.default.isReachable {
-            WCSession.default.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+            WCSession.default.sendMessage(payload, replyHandler: nil) { [weak self] _ in
+                self?.fallbackTransfer(payload)
+            }
+        } else {
+            fallbackTransfer(payload)
         }
     }
 

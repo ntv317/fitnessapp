@@ -16,6 +16,10 @@ struct RestTimerAttributes: ActivityAttributes {
 }
 
 public class LiveActivityModule: Module {
+  // Activity<T> is iOS 16.2+ and @available is illegal on stored properties
+  // in a 15.1-target module, so the reference is erased to Any.
+  private var currentActivity: Any?
+
   public func definition() -> ModuleDefinition {
     Name("LiveActivity")
 
@@ -29,20 +33,15 @@ public class LiveActivityModule: Module {
         setNumber: setNumber,
         totalSets: totalSets
       )
-      // One rest activity at a time: update a live one in place (avoids
-      // lock-screen churn between sets). Ghosts persisted from a previous app
-      // session are ended, not reused — updates to them would no-op.
-      var updated = false
-      for activity in Activity<RestTimerAttributes>.activities {
-        if activity.activityState == .active && !updated {
-          await activity.update(ActivityContent(state: state, staleDate: nil))
-          updated = true
-        } else {
-          await activity.end(nil, dismissalPolicy: .immediate)
-        }
+      let current = self.currentActivity as? Activity<RestTimerAttributes>
+      // End ghost activities from previous sessions.
+      for activity in Activity<RestTimerAttributes>.activities where activity.id != current?.id {
+        await activity.end(nil, dismissalPolicy: .immediate)
       }
-      if !updated {
-        _ = try? Activity.request(
+      if let live = current, live.activityState == .active {
+        await live.update(ActivityContent(state: state, staleDate: nil))
+      } else {
+        self.currentActivity = try? Activity.request(
           attributes: RestTimerAttributes(accentHex: accentHex),
           content: ActivityContent(state: state, staleDate: nil)
         )
@@ -60,6 +59,7 @@ public class LiveActivityModule: Module {
 
     AsyncFunction("stopRestActivity") { () async in
       guard #available(iOS 16.2, *) else { return }
+      self.currentActivity = nil
       for activity in Activity<RestTimerAttributes>.activities {
         await activity.end(nil, dismissalPolicy: .immediate)
       }

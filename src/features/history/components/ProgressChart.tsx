@@ -22,8 +22,8 @@ const CHART_H  = 140;
 const MAX_SESS = 20;
 const STROKE   = 2.5;
 
-const METRICS: { key: Metric; label: string }[] = [
-  { key: 'maxWeight', label: 'Max kg'   },
+const BASE_METRICS: { key: Metric; label: string }[] = [
+  { key: 'maxWeight', label: 'Max'      },
   { key: 'oneRM',     label: 'Est. 1RM' },
   { key: 'volume',    label: 'Volume'   },
 ];
@@ -62,6 +62,10 @@ export function ProgressChart({ logs, color = Colors.primary }: Props) {
 
   if (data.length < 2) return null;
 
+  const metrics = BASE_METRICS.map((m) =>
+    m.key === 'maxWeight' ? { ...m, label: `Max ${weightUnit}` } : m,
+  );
+
   const onLayout = (e: LayoutChangeEvent) => setChartW(e.nativeEvent.layout.width);
 
   const values = data.map((d) => d[metric]);
@@ -95,7 +99,7 @@ export function ProgressChart({ logs, color = Colors.primary }: Props) {
     <View style={s.wrap}>
       <View style={s.header}>
         <View style={s.tabs}>
-          {METRICS.map(({ key, label }) => (
+          {metrics.map(({ key, label }) => (
             <TouchableOpacity
               key={key}
               style={[s.tab, metric === key && { backgroundColor: color + '18', borderColor: color + '60' }]}

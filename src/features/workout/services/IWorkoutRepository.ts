@@ -2,7 +2,6 @@ import type {
   AIImportPayload,
   Exercise,
   ExerciseInput,
-  LogWorkoutInput,
   PageOptions,
   WorkoutLog,
   WorkoutLogWithExercise,
@@ -20,18 +19,17 @@ export interface IWorkoutRepository {
   getAllDays(): Promise<{ dayTag: string; exercises: Exercise[] }[]>;
   upsertExercise(input: ExerciseInput): Promise<Exercise>;
 
-  logWorkout(input: LogWorkoutInput): Promise<number>;
   deleteLog(logId: number): Promise<void>;
 
-  /** Create an empty workout log for an exercise; returns logId. */
-  createLog(exerciseId: number, timestamp: number): Promise<number>;
-  /** Append a single set to an existing log and increment the weekly counter. */
-  appendSet(logId: number, exerciseId: number, setOrder: number, reps: number, weight: number): Promise<void>;
-  /** Get today's log id for an exercise, or null if none exists. */
-  getTodayLogId(exerciseId: number): Promise<number | null>;
+  /** Create an empty workout log for an exercise on a given day; returns logId. */
+  createLog(exerciseId: number, timestamp: number, dayTag: string | null): Promise<number>;
+  /** Append a single set to an existing log and increment that day's weekly counter. */
+  appendSet(logId: number, exerciseId: number, setOrder: number, reps: number, weight: number, dayTag: string | null): Promise<void>;
+  /** Get today's log id for an exercise on a given day, or null if none exists. */
+  getTodayLogId(exerciseId: number, dayTag: string | null): Promise<number | null>;
 
-  /** Sets logged in the given week per exercise (exerciseId → sets_done). */
-  getWeeklyProgress(weekStart: number): Promise<Map<number, number>>;
+  /** Sets logged in the given week, keyed by weeklyKey(exerciseId, dayTag). */
+  getWeeklyProgress(weekStart: number): Promise<Map<string, number>>;
 
   /** Cursor-paginated history for one exercise, newest first. */
   getHistory(exerciseId: number, options: PageOptions): Promise<WorkoutLog[]>;

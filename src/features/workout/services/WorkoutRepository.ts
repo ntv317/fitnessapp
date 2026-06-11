@@ -5,7 +5,6 @@ import type {
   Exercise,
   ExerciseInput,
   ExerciseRow,
-  LogWorkoutInput,
   PageOptions,
   WorkoutLog,
   WorkoutLogRow,
@@ -13,6 +12,7 @@ import type {
   WorkoutSetRow,
 } from '@/core/database/types';
 import { weekStartOf } from '@/core/utils/date';
+import { weeklyKey } from '../utils/progress';
 
 type ExerciseWithDay = ExerciseRow & { day_tag: string | null };
 
@@ -148,62 +148,73 @@ export class WorkoutRepository implements IWorkoutRepository {
 
   // ── Logging ───────────────────────────────────────────────────────────────
 
-  async logWorkout(input: LogWorkoutInput): Promise<number> {
-    let logId = 0;
-    await this.db.withTransactionAsync(async () => {
-      const header = await this.db.runAsync(
-        'INSERT INTO WorkoutLogs (exercise_id, timestamp) VALUES (?, ?);',
-        [input.exerciseId, input.timestamp],
-      );
-      logId = header.lastInsertRowId;
-      await this.insertSets(logId, input.sets);
-    });
-    return logId;
-  }
-
   async deleteLog(logId: number): Promise<void> {
-    await this.db.runAsync('DELETE FROM WorkoutLogs WHERE id = ?;', [logId]);
-  }
-
-  async createLog(exerciseId: number, timestamp: number): Promise<number> {
-    const result = await this.db.runAsync(
-      'INSERT INTO WorkoutLogs (exercise_id, timestamp) VALUES (?, ?);',
-      [exerciseId, timestamp],
-    );
-    return result.lastInsertRowId;
-  }
-
-  async appendSet(logId: number, exerciseId: number, setOrder: number, reps: number, weight: number): Promise<void> {
-    const weekStart = weekStartOf(Date.now());
     await this.db.withTransactionAsync(async () => {
-      const result = await this.db.runAsync(
-        'INSERT OR IGNORE INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (?, ?, ?, ?);',
-        [logId, setOrder, reps, weight],
+      const log = await this.db.getFirstAsync<{ exercise_id: number; day_tag: string | null; timestamp: number }>(
+        'SELECT exercise_id, day_tag, timestamp FROM WorkoutLogs WHERE id = ?;',
+        [logId],
       );
-      if (result.changes > 0) {
+      if (!log) return;
+      const { count } = (await this.db.getFirstAsync<{ count: number }>(
+        'SELECT COUNT(*) AS count FROM WorkoutSets WHERE log_id = ?;',
+        [logId],
+      ))!;
+      await this.db.runAsync('DELETE FROM WorkoutLogs WHERE id = ?;', [logId]);
+      if (count > 0) {
+        const ws = weekStartOf(log.timestamp);
         await this.db.runAsync(
-          `INSERT INTO WeeklyProgress (exercise_id, week_start, sets_done) VALUES (?, ?, 1)
-           ON CONFLICT(exercise_id, week_start) DO UPDATE SET sets_done = sets_done + 1;`,
-          [exerciseId, weekStart],
+          `UPDATE WeeklyProgress SET sets_done = MAX(0, sets_done - ?)
+           WHERE exercise_id = ? AND day_tag = ? AND week_start = ?;`,
+          [count, log.exercise_id, log.day_tag ?? '', ws],
         );
       }
     });
   }
 
-  async getWeeklyProgress(weekStart: number): Promise<Map<number, number>> {
-    const rows = await this.db.getAllAsync<{ exercise_id: number; sets_done: number }>(
-      `SELECT exercise_id, sets_done FROM WeeklyProgress WHERE week_start = ?;`,
-      [weekStart],
+  async createLog(exerciseId: number, timestamp: number, dayTag: string | null): Promise<number> {
+    const result = await this.db.runAsync(
+      'INSERT INTO WorkoutLogs (exercise_id, timestamp, day_tag) VALUES (?, ?, ?);',
+      [exerciseId, timestamp, dayTag],
     );
-    return new Map(rows.map((r) => [r.exercise_id, r.sets_done]));
+    return result.lastInsertRowId;
   }
 
-  async getTodayLogId(exerciseId: number): Promise<number | null> {
+  async appendSet(logId: number, exerciseId: number, setOrder: number, reps: number, weight: number, dayTag: string | null): Promise<void> {
+    const weekStart = weekStartOf(Date.now());
+    await this.db.withTransactionAsync(async () => {
+      const existing = await this.db.getFirstAsync<{ one: number }>(
+        'SELECT 1 AS one FROM WorkoutSets WHERE log_id = ? AND set_order = ?;',
+        [logId, setOrder],
+      );
+      await this.db.runAsync(
+        `INSERT INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (?, ?, ?, ?)
+         ON CONFLICT(log_id, set_order) DO UPDATE SET reps = excluded.reps, weight = excluded.weight;`,
+        [logId, setOrder, reps, weight],
+      );
+      if (!existing) {
+        await this.db.runAsync(
+          `INSERT INTO WeeklyProgress (exercise_id, day_tag, week_start, sets_done) VALUES (?, ?, ?, 1)
+           ON CONFLICT(exercise_id, day_tag, week_start) DO UPDATE SET sets_done = sets_done + 1;`,
+          [exerciseId, dayTag ?? '', weekStart],
+        );
+      }
+    });
+  }
+
+  async getWeeklyProgress(weekStart: number): Promise<Map<string, number>> {
+    const rows = await this.db.getAllAsync<{ exercise_id: number; day_tag: string; sets_done: number }>(
+      `SELECT exercise_id, day_tag, sets_done FROM WeeklyProgress WHERE week_start = ?;`,
+      [weekStart],
+    );
+    return new Map(rows.map((r) => [weeklyKey(r.exercise_id, r.day_tag || null), r.sets_done]));
+  }
+
+  async getTodayLogId(exerciseId: number, dayTag: string | null): Promise<number | null> {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const row = await this.db.getFirstAsync<{ id: number }>(
-      'SELECT id FROM WorkoutLogs WHERE exercise_id = ? AND timestamp >= ? ORDER BY timestamp DESC LIMIT 1;',
-      [exerciseId, startOfDay.getTime()],
+      'SELECT id FROM WorkoutLogs WHERE exercise_id = ? AND timestamp >= ? AND day_tag IS ? ORDER BY timestamp DESC LIMIT 1;',
+      [exerciseId, startOfDay.getTime(), dayTag],
     );
     return row?.id ?? null;
   }
@@ -249,6 +260,7 @@ export class WorkoutRepository implements IWorkoutRepository {
       id: log.id,
       exerciseId: log.exercise_id,
       timestamp: log.timestamp,
+      dayTag: log.day_tag ?? null,
       sets: (setsByLog.get(log.id) ?? []).map((s) => ({
         setOrder: s.set_order,
         reps: s.reps,
@@ -265,7 +277,7 @@ export class WorkoutRepository implements IWorkoutRepository {
     const logRows = beforeTimestamp
       ? await this.db.getAllAsync<LogWithEx>(
           `SELECT wl.id, wl.exercise_id, wl.timestamp, e.name AS exercise_name,
-                  ${WorkoutRepository.DAY_TAG_SQL} AS day_tag
+                  COALESCE(wl.day_tag, ${WorkoutRepository.DAY_TAG_SQL}) AS day_tag
            FROM WorkoutLogs wl
            JOIN Exercises e ON e.id = wl.exercise_id
            WHERE wl.timestamp < ?
@@ -274,7 +286,7 @@ export class WorkoutRepository implements IWorkoutRepository {
         )
       : await this.db.getAllAsync<LogWithEx>(
           `SELECT wl.id, wl.exercise_id, wl.timestamp, e.name AS exercise_name,
-                  ${WorkoutRepository.DAY_TAG_SQL} AS day_tag
+                  COALESCE(wl.day_tag, ${WorkoutRepository.DAY_TAG_SQL}) AS day_tag
            FROM WorkoutLogs wl
            JOIN Exercises e ON e.id = wl.exercise_id
            ORDER BY wl.timestamp DESC LIMIT ?;`,
@@ -345,16 +357,16 @@ export class WorkoutRepository implements IWorkoutRepository {
               weight: item.weight as number,
             }));
             const header = await this.db.runAsync(
-              'INSERT INTO WorkoutLogs (exercise_id, timestamp) VALUES (?, ?);',
-              [exercise.id, timestamp],
+              'INSERT INTO WorkoutLogs (exercise_id, timestamp, day_tag) VALUES (?, ?, ?);',
+              [exercise.id, timestamp, dayName],
             );
             await this.insertSets(header.lastInsertRowId, sets);
             // Keep the weekly counter in sync with imported session sets.
             const ws = weekStartOf(timestamp);
             await this.db.runAsync(
-              `INSERT INTO WeeklyProgress (exercise_id, week_start, sets_done) VALUES (?, ?, ?)
-               ON CONFLICT(exercise_id, week_start) DO UPDATE SET sets_done = sets_done + excluded.sets_done;`,
-              [exercise.id, ws, item.sets],
+              `INSERT INTO WeeklyProgress (exercise_id, day_tag, week_start, sets_done) VALUES (?, ?, ?, ?)
+               ON CONFLICT(exercise_id, day_tag, week_start) DO UPDATE SET sets_done = sets_done + excluded.sets_done;`,
+              [exercise.id, dayName, ws, item.sets],
             );
           }
         }
