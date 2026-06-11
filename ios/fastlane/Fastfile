@@ -4,6 +4,7 @@ WORKSPACE   = "FitnessApp.xcworkspace"
 SCHEME      = "FitnessApp"
 APP_ID      = "io.liftr.app"
 WATCH_ID    = "io.liftr.app.watchkitapp"
+WIDGET_ID   = "io.liftr.app.TRAKWidgets"
 
 platform :ios do
   desc "Build and upload a new build to TestFlight"
@@ -20,7 +21,7 @@ platform :ios do
     # readonly in CI so a build never mints new certs; create them locally first.
     match(
       type: "appstore",
-      app_identifier: [APP_ID, WATCH_ID],
+      app_identifier: [APP_ID, WATCH_ID, WIDGET_ID],
       api_key: api_key,
       readonly: is_ci
     )
@@ -39,8 +40,9 @@ platform :ios do
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          APP_ID   => "match AppStore #{APP_ID}",
-          WATCH_ID => "match AppStore #{WATCH_ID}"
+          APP_ID    => "match AppStore #{APP_ID}",
+          WATCH_ID  => "match AppStore #{WATCH_ID}",
+          WIDGET_ID => "match AppStore #{WIDGET_ID}"
         }
       }
     )

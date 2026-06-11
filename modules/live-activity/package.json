@@ -1,0 +1,7 @@
+{
+  "name": "live-activity",
+  "version": "1.0.0",
+  "description": "Rest timer Live Activity (lock screen / Dynamic Island countdown)",
+  "main": "index.ts",
+  "license": "MIT"
+}

@@ -3,7 +3,7 @@ import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
+import { Colors, Spacing, Fonts } from '@/core/theme';
 import { WEEKLY_PLAN } from '@/core/config/workoutPlan';
 import { useAllDays } from '../hooks/useExercises';
 import { useWeeklyProgress } from '../hooks/useWorkoutLogs';
@@ -18,11 +18,6 @@ const MARGIN = 20; // margin-mobile
 
 function planFor(dayTag: string) {
   return Object.values(WEEKLY_PLAN).find((p) => p?.name === dayTag) ?? null;
-}
-
-function weekdayFor(dayTag: string): number | null {
-  const entry = Object.entries(WEEKLY_PLAN).find(([, p]) => p?.name === dayTag);
-  return entry ? Number(entry[0]) : null;
 }
 
 function dayColor(dayTag: string): string {
@@ -82,7 +77,6 @@ function ExerciseRow({
 function DayCard({
   dayTag,
   exercises,
-  isToday,
   expanded,
   onToggle,
   progress,
@@ -92,7 +86,6 @@ function DayCard({
 }: {
   dayTag: string;
   exercises: Exercise[];
-  isToday: boolean;
   expanded: boolean;
   onToggle: () => void;
   progress: SetProgress;
@@ -113,11 +106,6 @@ function DayCard({
           <AppText variant="labelMono" upper color={color}>{musclesFor(dayTag)}</AppText>
           <View style={styles.nameRow}>
             <AppText variant="headlineMd">{dayTag}</AppText>
-            {isToday && (
-              <View style={[styles.todayPill, { backgroundColor: color }]}>
-                <AppText variant="labelMono" upper color={Colors.white} style={{ fontSize: 10 }}>Today</AppText>
-              </View>
-            )}
           </View>
         </View>
         <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={20} color={Colors.textSecondary} />
@@ -208,19 +196,6 @@ export default function WorkoutLogScreen() {
     }, [refetchThisWeek]),
   );
 
-  const today = new Date().getDay();
-  const todayTag = WEEKLY_PLAN[today]?.name ?? null;
-
-  // Sort days so today is first, then tomorrow, etc. Unplanned days last.
-  const sortedDays = useMemo(() => {
-    const offset = (tag: string) => {
-      const wd = weekdayFor(tag);
-      if (wd == null) return 99;
-      return (wd - today + 7) % 7;
-    };
-    return [...allDays].sort((a, b) => offset(a.dayTag) - offset(b.dayTag));
-  }, [allDays, today]);
-
   const loggedMap = thisWeekMap;
 
   const toggle = useCallback((tag: string) => {
@@ -274,12 +249,11 @@ export default function WorkoutLogScreen() {
             </AppText>
           </View>
 
-          {sortedDays.map(({ dayTag, exercises }) => (
+          {allDays.map(({ dayTag, exercises }) => (
             <DayCard
               key={dayTag}
               dayTag={dayTag}
               exercises={exercises}
-              isToday={todayTag === dayTag}
               expanded={expanded.has(dayTag)}
               onToggle={() => toggle(dayTag)}
               progress={dayProgress(exercises, loggedMap)}
@@ -331,7 +305,6 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'flex-start' },
   catRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 2 },
-  todayPill: { borderRadius: Radius.full, paddingHorizontal: 8, paddingVertical: 2 },
 
   metaRow: { flexDirection: 'row', gap: Spacing.lg, marginTop: Spacing.md },
   metaItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },

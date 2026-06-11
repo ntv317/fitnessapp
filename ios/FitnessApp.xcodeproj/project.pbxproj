@@ -9,11 +9,14 @@
 /* Begin PBXBuildFile section */
 		06439F110406DE2DEC8C717A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDBEE8A26A98A0A9B8BD1211 /* AppDelegate.swift */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		3B042F960C223C5865123E6F /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AFF99E425B064F35484541D4 /* Foundation.framework */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		48D20D68C4E1F589F6166258 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13BA407C82E3D0CD23E3CA92 /* PrivacyInfo.xcprivacy */; };
 		7333441D2FCF4F8A001D055B /* TRAKWatch Watch App.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 733344132FCF4F89001D055B /* TRAKWatch Watch App.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		826D70AE4DB6BD42F15E5F0B /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13BA407C82E3D0CD23E3CA92 /* PrivacyInfo.xcprivacy */; };
 		96905EF65AED1B983A6B3ABC /* libPods-FitnessApp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 58EEBF8E8E6FB1BC6CAF49B5 /* libPods-FitnessApp.a */; };
+		9D9D1B319FBBA5E8783A14E1 /* TRAKWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = BE8D03D10AA663CE1D538DC4 /* TRAKWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		A87BF28BFEDC6ECDBB21DED6 /* TRAKWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE03E44024DAF276A7BDD912 /* TRAKWidgetsBundle.swift */; };
 		B18059E884C0ABDD17F3DC3D /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC715A2D49A985799AEE119 /* ExpoModulesProvider.swift */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 /* End PBXBuildFile section */
@@ -25,6 +28,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 733344122FCF4F89001D055B;
 			remoteInfo = "TRAKWatch Watch App";
+		};
+		EAE5F95CFA0DD0EA87398D7E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3097A7D024D0B2F4BF45310A;
+			remoteInfo = TRAKWidgets;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -40,6 +50,17 @@
 			name = "Embed Watch Content";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A6FCA34BCD639F64B04BDCAF /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				9D9D1B319FBBA5E8783A14E1 /* TRAKWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -49,17 +70,31 @@
 		13BA407C82E3D0CD23E3CA92 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = FitnessApp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		58EEBF8E8E6FB1BC6CAF49B5 /* libPods-FitnessApp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FitnessApp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6C2E3173556A471DD304B334 /* Pods-FitnessApp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FitnessApp.debug.xcconfig"; path = "Target Support Files/Pods-FitnessApp/Pods-FitnessApp.debug.xcconfig"; sourceTree = "<group>"; };
+		72ED61410A1F88C439FC2803 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		733344132FCF4F89001D055B /* TRAKWatch Watch App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "TRAKWatch Watch App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		7A4D352CD337FB3A3BF06240 /* Pods-FitnessApp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FitnessApp.release.xcconfig"; path = "Target Support Files/Pods-FitnessApp/Pods-FitnessApp.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = FitnessApp/SplashScreen.storyboard; sourceTree = "<group>"; };
+		AFF99E425B064F35484541D4 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		BDBEE8A26A98A0A9B8BD1211 /* AppDelegate.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = FitnessApp/AppDelegate.swift; sourceTree = "<group>"; };
+		BE8D03D10AA663CE1D538DC4 /* TRAKWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TRAKWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		FAC715A2D49A985799AEE119 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-FitnessApp/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		FE03E44024DAF276A7BDD912 /* TRAKWidgetsBundle.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TRAKWidgetsBundle.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		733344142FCF4F89001D055B /* TRAKWatch Watch App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = "TRAKWatch Watch App"; sourceTree = "<group>"; };
+		733344142FCF4F89001D055B /* TRAKWatch Watch App */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = "TRAKWatch Watch App";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +103,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				96905EF65AED1B983A6B3ABC /* libPods-FitnessApp.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5C8544BE5D3AEDE5867BAE8E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3B042F960C223C5865123E6F /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -99,8 +142,17 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				58EEBF8E8E6FB1BC6CAF49B5 /* libPods-FitnessApp.a */,
+				5B4650240BF15C6FA56749CF /* iOS */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5B4650240BF15C6FA56749CF /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				AFF99E425B064F35484541D4 /* Foundation.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -120,6 +172,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				D65327D7A22EEC0BE12398D9 /* Pods */,
 				D7E4C46ADA2E9064B798F356 /* ExpoModulesProviders */,
+				9F77DA7B6A6EBA61707BAE33 /* TRAKWidgets */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -131,6 +184,7 @@
 			children = (
 				13B07F961A680F5B00A75B9A /* FitnessApp.app */,
 				733344132FCF4F89001D055B /* TRAKWatch Watch App.app */,
+				BE8D03D10AA663CE1D538DC4 /* TRAKWidgets.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -141,6 +195,16 @@
 				FAC715A2D49A985799AEE119 /* ExpoModulesProvider.swift */,
 			);
 			name = FitnessApp;
+			sourceTree = "<group>";
+		};
+		9F77DA7B6A6EBA61707BAE33 /* TRAKWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				FE03E44024DAF276A7BDD912 /* TRAKWidgetsBundle.swift */,
+				72ED61410A1F88C439FC2803 /* Info.plist */,
+			);
+			name = TRAKWidgets;
+			path = TRAKWidgets;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -185,16 +249,35 @@
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				4567EC55A53A08AFB0687EE5 /* [CP] Embed Pods Frameworks */,
 				733344212FCF4F8A001D055B /* Embed Watch Content */,
+				A6FCA34BCD639F64B04BDCAF /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 				7333441C2FCF4F8A001D055B /* PBXTargetDependency */,
+				8C907949450BAD66A1D37C52 /* PBXTargetDependency */,
 			);
 			name = FitnessApp;
 			productName = FitnessApp;
 			productReference = 13B07F961A680F5B00A75B9A /* FitnessApp.app */;
 			productType = "com.apple.product-type.application";
+		};
+		3097A7D024D0B2F4BF45310A /* TRAKWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9C16BCD81E0DEF0BC3674DA6 /* Build configuration list for PBXNativeTarget "TRAKWidgets" */;
+			buildPhases = (
+				9A3F76427D6B4F55274B2D26 /* Sources */,
+				5C8544BE5D3AEDE5867BAE8E /* Frameworks */,
+				5425C59C8A21101E7965E7BD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TRAKWidgets;
+			productName = TRAKWidgets;
+			productReference = BE8D03D10AA663CE1D538DC4 /* TRAKWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		733344122FCF4F89001D055B /* TRAKWatch Watch App */ = {
 			isa = PBXNativeTarget;
@@ -249,6 +332,7 @@
 			targets = (
 				13B07F861A680F5B00A75B9A /* FitnessApp */,
 				733344122FCF4F89001D055B /* TRAKWatch Watch App */,
+				3097A7D024D0B2F4BF45310A /* TRAKWidgets */,
 			);
 		};
 /* End PBXProject section */
@@ -262,6 +346,13 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				826D70AE4DB6BD42F15E5F0B /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5425C59C8A21101E7965E7BD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -413,6 +504,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		9A3F76427D6B4F55274B2D26 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A87BF28BFEDC6ECDBB21DED6 /* TRAKWidgetsBundle.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -420,6 +519,12 @@
 			isa = PBXTargetDependency;
 			target = 733344122FCF4F89001D055B /* TRAKWatch Watch App */;
 			targetProxy = 7333441B2FCF4F8A001D055B /* PBXContainerItemProxy */;
+		};
+		8C907949450BAD66A1D37C52 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TRAKWidgets;
+			target = 3097A7D024D0B2F4BF45310A /* TRAKWidgets */;
+			targetProxy = EAE5F95CFA0DD0EA87398D7E /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -469,12 +574,11 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 7A4D352CD337FB3A3BF06240 /* Pods-FitnessApp.release.xcconfig */;
 			buildSettings = {
-				CODE_SIGN_STYLE = Manual;
-				CODE_SIGN_IDENTITY = "Apple Distribution";
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
-				PROVISIONING_PROFILE_SPECIFIER = "LIFTREPS App Store";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = HF9JSGH879;
 				INFOPLIST_FILE = FitnessApp/Info.plist;
@@ -494,6 +598,7 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = io.liftr.app;
 				PRODUCT_NAME = FitnessApp;
+				PROVISIONING_PROFILE_SPECIFIER = "LIFTREPS App Store";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -503,6 +608,63 @@
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
+		};
+		2B103F0331C140429E3A02CE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = HF9JSGH879;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TRAKWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TRAKWidgets;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = io.liftr.app.TRAKWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "match AppStore io.liftr.app.TRAKWidgets";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		65F37A7CEE38D7D1E9C3D941 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = HF9JSGH879;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TRAKWidgets/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TRAKWidgets;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = io.liftr.app.TRAKWidgets;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
 		};
 		7333441F2FCF4F8A001D055B /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -556,9 +718,6 @@
 		733344202FCF4F8A001D055B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				CODE_SIGN_STYLE = Manual;
-				CODE_SIGN_IDENTITY = "Apple Distribution";
-				PROVISIONING_PROFILE_SPECIFIER = "LIFTREPS Watch App Store";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -568,6 +727,8 @@
 				CLANG_ENABLE_OBJC_WEAK = YES;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
 				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CODE_SIGN_IDENTITY = "Apple Distribution";
+				CODE_SIGN_STYLE = Manual;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 2;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
@@ -589,6 +750,7 @@
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = io.liftr.app.watchkitapp;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "LIFTREPS Watch App Store";
 				SDKROOT = watchos;
 				SKIP_INSTALL = YES;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -659,7 +821,10 @@
 				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
-				OTHER_LDFLAGS = "$(inherited)  ";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					" ",
+				);
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -717,7 +882,10 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(SDKROOT)/usr/lib/swift\"$(inherited)\"";
 				MTL_ENABLE_DEBUG_INFO = NO;
-				OTHER_LDFLAGS = "$(inherited)  ";
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					" ",
+				);
 				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -753,6 +921,15 @@
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9C16BCD81E0DEF0BC3674DA6 /* Build configuration list for PBXNativeTarget "TRAKWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2B103F0331C140429E3A02CE /* Release */,
+				65F37A7CEE38D7D1E9C3D941 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

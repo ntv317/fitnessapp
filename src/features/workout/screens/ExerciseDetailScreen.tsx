@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { View, ScrollView, TouchableOpacity, StyleSheet, ActionSheetIOS } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +9,9 @@ import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText, Card, StepperInput } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
 import { useExercises, useAllDays } from '../hooks/useExercises';
-import { useAutoSaveSet, useWorkoutLogs, historyKey } from '../hooks/useWorkoutLogs';
+import { useAutoSaveSet, useWorkoutLogs, useWeeklyProgress, historyKey } from '../hooks/useWorkoutLogs';
+import { DEFAULT_TARGET_SETS } from '../utils/progress';
+import { weekStartOf } from '@/core/utils/date';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWatchSync, type WatchSetLogged } from '../hooks/useWatchSync';
 import { useBarbellConfig } from '../hooks/useBarbellConfig';
@@ -19,6 +21,42 @@ import { ProgressChart } from '@/features/history/components/ProgressChart';
 import { detectPR } from '../utils/pr';
 import { startSession, addExerciseResult, getSession } from '../utils/workoutSession';
 import { formatWeight } from '@/core/utils/format';
+import * as Notifications from 'expo-notifications';
+import {
+  startRestActivity,
+  updateRestActivity,
+  stopRestActivity,
+} from '../../../../modules/live-activity';
+
+// Per-screen-instance so auto-advance (replace mounts the next exercise before
+// this one unmounts) can't cancel the new screen's pending notification.
+function useRestNotification() {
+  const idRef = useRef<string | null>(null);
+
+  const cancel = useCallback(async () => {
+    if (idRef.current) {
+      await Notifications.cancelScheduledNotificationAsync(idRef.current).catch(() => {});
+      idRef.current = null;
+    }
+  }, []);
+
+  // Fires when rest ends while the app is backgrounded; silent in foreground
+  // (the rest overlay is already on screen).
+  const schedule = useCallback(async (seconds: number) => {
+    const perm = await Notifications.getPermissionsAsync().catch(() => null);
+    if (!perm?.granted) return;
+    await cancel();
+    idRef.current = await Notifications.scheduleNotificationAsync({
+      content: { title: 'Rest complete', body: 'Time for your next set.', sound: true },
+      trigger: {
+        seconds: Math.max(1, seconds),
+        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      },
+    });
+  }, [cancel]);
+
+  return { schedule, cancel };
+}
 const MARGIN = 20; // margin-mobile
 
 interface SetState {
@@ -102,6 +140,7 @@ function RestTimerOverlay({
   upNextSub,
   onComplete,
   onSkip,
+  onAdjust,
 }: {
   durationSeconds: number;
   runKey: number;
@@ -110,6 +149,7 @@ function RestTimerOverlay({
   upNextSub: string;
   onComplete: () => void;
   onSkip: () => void;
+  onAdjust?: (endAtMs: number) => void;
 }) {
   const insets = useSafeAreaInsets();
   const [remaining, setRemaining] = useState(durationSeconds);
@@ -141,6 +181,7 @@ function RestTimerOverlay({
     const rem = Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000));
     setRemaining(rem);
     setTotal((t) => Math.max(t, rem));
+    onAdjust?.(endAtRef.current);
   };
 
   const progress = total > 0 ? remaining / total : 0;
@@ -229,6 +270,12 @@ export default function ExerciseDetailScreen() {
   const [celebrateData, setCelebrateData] = useState<CelebrateData | null>(null);
 
   const { unit, toKg, fromKg, conversionHint, showConversion, showPlateBreakdown } = useUnit();
+  const { schedule: scheduleRestNotification, cancel: cancelRestNotification } = useRestNotification();
+
+  // Ask once up front so the permission dialog doesn't interrupt the first rest.
+  useEffect(() => {
+    Notifications.requestPermissionsAsync().catch(() => {});
+  }, []);
   const { config: barbellConfig } = useBarbellConfig();
   const saveSet = useAutoSaveSet();
   const qc = useQueryClient();
@@ -241,11 +288,19 @@ export default function ExerciseDetailScreen() {
   const { data: allDays = [] } = useAllDays();
   const exercise = exercises.find((e) => e.id === exerciseId);
 
-  // The next exercise in this day's plan (for auto-advance after the last set).
+  // Auto-advance targets the next INCOMPLETE exercise of the day (wrapping back
+  // to skipped ones), so the summary only appears once every exercise is done.
+  const thisWeekStart = useMemo(() => weekStartOf(Date.now()), []);
+  const { data: weeklyMap = new Map<number, number>() } = useWeeklyProgress(thisWeekStart);
   const dayExercises = allDays.find((d) => d.dayTag === params.day)?.exercises ?? [];
   const curIdx = dayExercises.findIndex((e) => e.id === exerciseId);
+  const remaining = dayExercises.filter((e) => {
+    if (e.id === exerciseId) return false;
+    const target = e.targetSets > 0 ? e.targetSets : DEFAULT_TARGET_SETS;
+    return (weeklyMap.get(e.id) ?? 0) < target;
+  });
   const nextExercise =
-    curIdx >= 0 && curIdx < dayExercises.length - 1 ? dayExercises[curIdx + 1] : null;
+    remaining.find((e) => dayExercises.indexOf(e) > curIdx) ?? remaining[0] ?? null;
 
   const [sets, setSets] = useState<SetState[]>(
     Array.from({ length: 3 }, () => ({ id: nextSetId(), weight: '', reps: '', done: false })),
@@ -351,11 +406,25 @@ export default function ExerciseDetailScreen() {
     [exercise, suggestedReps, suggestedWeight, sendWorkoutState, toKg, fromKg, unit, weightStep, barbellConfig, showConversion],
   );
 
-  // Start session tracking on the very first exercise (no startTime in params)
+  // Start session tracking on the very first exercise (no startTime in params).
+  // If a recent session is already in progress (user navigated back to the day
+  // list to open a skipped exercise), keep it instead of wiping its results.
   useEffect(() => {
-    if (!params.startTime) startSession(startTimeRef.current);
+    if (params.startTime) return;
+    const existing = getSession();
+    if (existing && Date.now() - existing.startTime < 4 * 60 * 60 * 1000) {
+      startTimeRef.current = existing.startTime;
+    } else {
+      startSession(startTimeRef.current);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Leaving the screen mid-rest must not leave a stale lock-screen countdown.
+  useEffect(() => () => {
+    stopRestActivity();
+    cancelRestNotification();
+  }, [cancelRestNotification]);
 
   // Push initial state when exercise loads
   useEffect(() => {
@@ -382,8 +451,17 @@ export default function ExerciseDetailScreen() {
       setRestSeconds(rest);
       setRestKey((k) => k + 1);
       pushWatchState(updatedSets, true, rest);
+      const nextIdx = updatedSets.findIndex((s) => !s.done);
+      startRestActivity(
+        exercise?.name ?? '',
+        nextIdx >= 0 ? nextIdx + 1 : updatedSets.length,
+        updatedSets.length,
+        Date.now() + rest * 1000,
+        accent,
+      );
+      scheduleRestNotification(rest);
     },
-    [exerciseId, exercise, saveSet, fromKg, pushWatchState],
+    [exerciseId, exercise, saveSet, fromKg, pushWatchState, accent, scheduleRestNotification],
   );
 
   // Wire the watch handler now that completeSet exists. Reassigned each render
@@ -417,6 +495,8 @@ export default function ExerciseDetailScreen() {
   const endRest = useCallback(
     (skipped = false) => {
       setRestSeconds(null);
+      stopRestActivity();
+      cancelRestNotification();
       if (skipped) sendMessage({ type: 'skipRest' });
       pushWatchState(setsRef.current, false, 0);
 
@@ -438,7 +518,7 @@ export default function ExerciseDetailScreen() {
         });
       }
     },
-    [sendMessage, pushWatchState, exercise, history, toKg, fromKg],
+    [sendMessage, pushWatchState, exercise, history, toKg, fromKg, cancelRestNotification],
   );
 
   // Called when the celebrate overlay auto-advances or is tapped
@@ -589,7 +669,7 @@ export default function ExerciseDetailScreen() {
         {/* Exercise header */}
         <View style={styles.exHeader}>
           <View style={{ flex: 1 }}>
-            <AppText variant="headlineLg" style={{ fontSize: 28, lineHeight: 32 }}>
+            <AppText variant="headlineLg" selectable style={{ fontSize: 28, lineHeight: 32 }}>
               {exercise?.name ?? 'Exercise'}
             </AppText>
             <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginTop: 2 }}>
@@ -739,6 +819,10 @@ export default function ExerciseDetailScreen() {
           upNextSub={restUpSub}
           onComplete={() => endRest(false)}
           onSkip={() => endRest(true)}
+          onAdjust={(endAtMs) => {
+            updateRestActivity(endAtMs);
+            scheduleRestNotification((endAtMs - Date.now()) / 1000);
+          }}
         />
       )}
 

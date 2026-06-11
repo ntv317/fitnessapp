@@ -7,6 +7,7 @@ class WatchSessionManager: NSObject, ObservableObject {
 
     @Published var workoutState = WorkoutState()
     @Published var restTimeRemaining: Int = 0
+    @Published var restEndDate: Date?
     private var restTimer: Timer?
 
     private override init() {
@@ -43,18 +44,33 @@ class WatchSessionManager: NSObject, ObservableObject {
 
     // MARK: - Rest timer
 
+    // Wall-clock based: the watch app suspends when the wrist drops, freezing
+    // Timer ticks. Anchoring to an end Date keeps the countdown correct on
+    // resume, and lets RestView use Text(timerInterval:) which the system
+    // renders live even while the app is inactive (always-on display).
     func startRestTimer(duration: Int) {
         restTimer?.invalidate()
-        DispatchQueue.main.async { self.restTimeRemaining = duration }
-        restTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
-            guard let self else { return }
-            DispatchQueue.main.async {
-                if self.restTimeRemaining > 0 {
-                    self.restTimeRemaining -= 1
-                } else {
-                    timer.invalidate()
-                    self.workoutState.isResting = false
-                }
+        let end = Date().addingTimeInterval(TimeInterval(duration))
+        DispatchQueue.main.async {
+            self.restEndDate = end
+            self.restTimeRemaining = duration
+        }
+        restTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            self?.syncRestFromClock()
+        }
+    }
+
+    func syncRestFromClock() {
+        DispatchQueue.main.async {
+            guard let end = self.restEndDate else { return }
+            let remaining = Int(ceil(end.timeIntervalSinceNow))
+            if remaining > 0 {
+                self.restTimeRemaining = remaining
+            } else {
+                self.restTimer?.invalidate()
+                self.restEndDate = nil
+                self.restTimeRemaining = 0
+                self.workoutState.isResting = false
             }
         }
     }
@@ -62,6 +78,7 @@ class WatchSessionManager: NSObject, ObservableObject {
     func skipRest() {
         restTimer?.invalidate()
         DispatchQueue.main.async {
+            self.restEndDate = nil
             self.restTimeRemaining = 0
             self.workoutState.isResting = false
         }

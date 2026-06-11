@@ -33,8 +33,16 @@ struct RestView: View {
                     .stroke(accent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(.linear(duration: 0.25), value: progress)
-                Text(countdown)
-                    .font(.system(size: 32, weight: .bold).monospacedDigit())
+                if let end = session.restEndDate, end > Date() {
+                    // System-rendered countdown — stays live while the app is
+                    // inactive (wrist down / always-on), unlike timer-driven text.
+                    Text(timerInterval: Date()...end, countsDown: true)
+                        .font(.system(size: 32, weight: .bold).monospacedDigit())
+                        .multilineTextAlignment(.center)
+                } else {
+                    Text(countdown)
+                        .font(.system(size: 32, weight: .bold).monospacedDigit())
+                }
             }
             .frame(width: 118, height: 118)
 
