@@ -11,11 +11,12 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { format, isToday, isYesterday } from 'date-fns';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { weekStartOf } from '@/core/utils/date';
-import { WEEKLY_PLAN } from '@/core/config/workoutPlan';
+import { dayColorForTag } from '@/features/workout/utils/dayColor';
 import { useAllHistory, useDeleteLog } from '@/features/workout/hooks/useWorkoutLogs';
 import { useExercises } from '@/features/workout/hooks/useExercises';
 import { useUnit } from '@/core/context/UnitContext';
@@ -55,11 +56,6 @@ function applyDateFilter(
 }
 
 // ── Grouping ───────────────────────────────────────────────────────────────────
-
-function getDayColor(dayTag: string): string {
-  const entry = Object.values(WEEKLY_PLAN).find((p) => p?.name === dayTag);
-  return entry?.color ?? Colors.primary;
-}
 
 function toLocalDateKey(ts: number): string {
   const d = new Date(ts);
@@ -111,7 +107,7 @@ function groupLogs(logs: WorkoutLogWithExercise[]): HistoryDay[] {
       sampleTs: sampleTs.get(dk)!,
       workouts: Array.from(wm.entries()).map(([tag, exercises]) => ({
         dayTag: tag,
-        color: getDayColor(tag),
+        color: dayColorForTag(tag),
         exercises,
         workoutKey: `${dk}::${tag}`,
       })),
@@ -451,6 +447,7 @@ function StatChip({
 // ── Main Screen ────────────────────────────────────────────────────────────────
 
 export default function HistoryScreen() {
+  const router = useRouter();
   const { data: logs = [], isLoading } = useAllHistory();
   const { data: exercises = [] } = useExercises();
   const { mutate: deleteLog } = useDeleteLog();
@@ -512,6 +509,9 @@ export default function HistoryScreen() {
   return (
     <SafeAreaView style={s.safe}>
       <View style={s.header}>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={s.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={Colors.primary} />
+        </TouchableOpacity>
         <Text style={s.title}>History</Text>
         {logs.length > 0 && (
           <Text style={s.sub}>
@@ -647,6 +647,7 @@ const s = StyleSheet.create({
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.sm,
   },
+  backBtn: { marginBottom: Spacing.sm, alignSelf: 'flex-start' },
   title: { color: Colors.textPrimary, fontSize: FontSize.xxl, fontWeight: '800' },
   sub: { color: Colors.textMuted, fontSize: FontSize.sm, marginTop: 2 },
   scroll: { padding: Spacing.md, paddingBottom: 80 },

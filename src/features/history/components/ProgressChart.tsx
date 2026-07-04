@@ -11,11 +11,13 @@ import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { useUnit } from '@/core/context/UnitContext';
 import type { WorkoutLog } from '@/core/database/types';
 
-type Metric = 'maxWeight' | 'oneRM' | 'volume';
+type Metric = 'maxWeight' | 'oneRM' | 'volume' | 'bestReps';
 
 interface Props {
   logs: WorkoutLog[];
   color?: string;
+  /** Which tabs to show, in order. Defaults to the original Max/Est. 1RM/Volume set. */
+  metrics?: { key: Metric; label: string }[];
 }
 
 const CHART_H  = 140;
@@ -32,8 +34,9 @@ function epley(w: number, r: number) {
   return r <= 1 ? w : Math.round(w * (1 + r / 30) * 10) / 10;
 }
 
-export function ProgressChart({ logs, color = Colors.primary }: Props) {
-  const [metric, setMetric] = useState<Metric>('maxWeight');
+export function ProgressChart({ logs, color = Colors.primary, metrics: metricsProp }: Props) {
+  const metricOptions = metricsProp ?? BASE_METRICS;
+  const [metric, setMetric] = useState<Metric>(metricOptions[0].key);
   const [chartW, setChartW] = useState(0);
   const { unit: weightUnit, fromKg } = useUnit();
 
@@ -52,18 +55,19 @@ export function ProgressChart({ logs, color = Colors.primary }: Props) {
         maxWeight: best.weight,
         oneRM:     epley(best.weight, best.reps),
         volume:    Math.round(vol),
+        bestReps:  Math.max(...valid.map((s) => s.reps)),
         timestamp: log.timestamp,
       };
     }).filter(Boolean) as {
       session: number; maxWeight: number; oneRM: number;
-      volume: number; timestamp: number;
+      volume: number; bestReps: number; timestamp: number;
     }[];
   }, [logs]);
 
   if (data.length < 2) return null;
 
-  const metrics = BASE_METRICS.map((m) =>
-    m.key === 'maxWeight' ? { ...m, label: `Max ${weightUnit}` } : m,
+  const metrics = metricOptions.map((m) =>
+    m.key === 'maxWeight' && !metricsProp ? { ...m, label: `Max ${weightUnit}` } : m,
   );
 
   const onLayout = (e: LayoutChangeEvent) => setChartW(e.nativeEvent.layout.width);
@@ -84,15 +88,17 @@ export function ProgressChart({ logs, color = Colors.primary }: Props) {
   const labelTop  = Math.max(2, last.y - 18);
   const labelLeft = last.x > chartW * 0.7 ? last.x - 40 : last.x + 8;
 
+  // bestReps is a rep count, not a weight — kg/lbs conversion doesn't apply to it.
+  const convert   = metric === 'bestReps' ? (v: number) => v : fromKg;
   const first     = data[0];
   const lastD     = data[data.length - 1];
-  const dispFirst = fromKg(first[metric]);
-  const dispLast  = fromKg(lastD[metric]);
+  const dispFirst = convert(first[metric]);
+  const dispLast  = convert(lastD[metric]);
   const delta     = dispLast - dispFirst;
   const sign      = delta >= 0 ? '+' : '';
   const pct       = first[metric] > 0 ? `${sign}${((delta / dispFirst) * 100).toFixed(0)}%` : '';
   const deltaAmt  = `${sign}${Math.abs(delta) < 1 ? delta.toFixed(1) : Math.round(delta)}`;
-  const unit      = metric === 'volume' ? `${weightUnit} vol` : weightUnit;
+  const unit      = metric === 'volume' ? `${weightUnit} vol` : metric === 'bestReps' ? 'reps' : weightUnit;
   const dColor    = delta >= 0 ? Colors.success : Colors.danger;
 
   return (
@@ -196,7 +202,7 @@ export function ProgressChart({ logs, color = Colors.primary }: Props) {
               }}
             />
             <Text style={[s.valLabel, { color, top: labelTop, left: labelLeft }]}>
-              {fromKg(values[values.length - 1])}
+              {convert(values[values.length - 1])}
             </Text>
           </>
         )}

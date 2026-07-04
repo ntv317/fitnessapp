@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { weekStartOf } from '@/core/utils/date';
 
-const DATABASE_VERSION = 7;
+const DATABASE_VERSION = 12;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
@@ -177,6 +177,151 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
       CREATE INDEX IF NOT EXISTS idx_weekly_week ON WeeklyProgress (week_start);
     `);
     version = 7;
+  }
+
+  if (version === 7) {
+    // Link to the bundled free-exercise-db catalog. NULL for user/AI-imported
+    // exercises — those have no images/instructions and never will.
+    await db.execAsync(`
+      ALTER TABLE Exercises ADD COLUMN catalog_id TEXT DEFAULT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_exercises_catalog
+        ON Exercises (catalog_id) WHERE catalog_id IS NOT NULL;
+    `);
+    version = 8;
+  }
+
+  if (version === 8) {
+    // Replace the fixed WorkoutDays/ExerciseDays split with user-editable Plans:
+    // a plan has named days, each day has exercises with a per-plan target set
+    // count. Existing days/exercise assignments become a single "My Split" plan
+    // (set active) so today's Log tab keeps working unchanged after migration.
+    //
+    // Idempotent by construction: if the app is killed after this transaction
+    // commits but before `PRAGMA user_version = 9` lands, the next launch
+    // re-enters this block against already-migrated data. CREATE/DROP use
+    // IF (NOT) EXISTS, and the data-copy step is skipped entirely once
+    // WorkoutDays is gone (the signal that a prior run already finished it).
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        CREATE TABLE IF NOT EXISTS Plans (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          name       TEXT    NOT NULL UNIQUE,
+          is_active  INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
+          created_at INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS PlanDays (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          plan_id    INTEGER NOT NULL REFERENCES Plans(id) ON DELETE CASCADE,
+          name       TEXT    NOT NULL,
+          sort_order INTEGER NOT NULL DEFAULT 0,
+          UNIQUE (plan_id, name)
+        );
+        CREATE TABLE IF NOT EXISTS PlanExercises (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          plan_day_id INTEGER NOT NULL REFERENCES PlanDays(id) ON DELETE CASCADE,
+          exercise_id INTEGER NOT NULL REFERENCES Exercises(id) ON DELETE CASCADE,
+          sort_order  INTEGER NOT NULL DEFAULT 0,
+          target_sets INTEGER NOT NULL DEFAULT 3,
+          rep_min     INTEGER,
+          rep_max     INTEGER,
+          UNIQUE (plan_day_id, exercise_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_plan_days_plan ON PlanDays (plan_id);
+        CREATE INDEX IF NOT EXISTS idx_plan_ex_day    ON PlanExercises (plan_day_id);
+      `);
+
+      const workoutDaysExists = await db.getFirstAsync<{ one: number }>(
+        `SELECT 1 AS one FROM sqlite_master WHERE type = 'table' AND name = 'WorkoutDays';`,
+      );
+
+      type OldDay = { id: number; name: string };
+      const oldDays = workoutDaysExists
+        ? await db.getAllAsync<OldDay>('SELECT id, name FROM WorkoutDays ORDER BY id ASC;')
+        : [];
+
+      if (oldDays.length > 0) {
+        const planResult = await db.runAsync(
+          'INSERT INTO Plans (name, is_active, created_at) VALUES (?, 1, ?);',
+          ['My Split', Date.now()],
+        );
+        const planId = planResult.lastInsertRowId;
+
+        const dayIdMap = new Map<number, number>(); // old WorkoutDays.id -> new PlanDays.id
+        for (let i = 0; i < oldDays.length; i++) {
+          const dayResult = await db.runAsync(
+            'INSERT INTO PlanDays (plan_id, name, sort_order) VALUES (?, ?, ?);',
+            [planId, oldDays[i].name, i],
+          );
+          dayIdMap.set(oldDays[i].id, dayResult.lastInsertRowId);
+        }
+
+        type OldExDay = { exercise_id: number; day_id: number; sort_order: number; target_sets: number };
+        const oldExDays = await db.getAllAsync<OldExDay>(
+          `SELECT ed.exercise_id, ed.day_id, ed.sort_order, e.target_sets
+           FROM ExerciseDays ed JOIN Exercises e ON e.id = ed.exercise_id
+           ORDER BY ed.day_id ASC, ed.sort_order ASC;`,
+        );
+        for (const row of oldExDays) {
+          const newDayId = dayIdMap.get(row.day_id);
+          if (!newDayId) continue;
+          await db.runAsync(
+            `INSERT INTO PlanExercises (plan_day_id, exercise_id, sort_order, target_sets)
+             VALUES (?, ?, ?, ?);`,
+            [newDayId, row.exercise_id, row.sort_order, row.target_sets > 0 ? row.target_sets : 3],
+          );
+        }
+      }
+
+      await db.execAsync(`
+        DROP TABLE IF EXISTS ExerciseDays;
+        DROP TABLE IF EXISTS WorkoutDays;
+      `);
+    });
+    version = 9;
+  }
+
+  if (version === 9) {
+    // Muscle group for exercises with no catalog link (AI-imported / custom),
+    // so the library can list them under their group. NULL when unknown or
+    // when the catalog already provides the group via catalog_id.
+    //
+    // ADD COLUMN has no IF NOT EXISTS and user_version only commits after all
+    // blocks — if the app is killed between this ALTER and that PRAGMA, the
+    // next launch re-enters here, so the column must be checked first or the
+    // duplicate-column error bricks the migration.
+    const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(Exercises);');
+    if (!cols.some((c) => c.name === 'muscle_group')) {
+      await db.execAsync(`ALTER TABLE Exercises ADD COLUMN muscle_group TEXT DEFAULT NULL;`);
+    }
+    await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_plans_active ON Plans (is_active);`);
+    version = 10;
+  }
+
+  if (version === 10) {
+    // Standalone body-weight log — weight stored as kg like everything else.
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS BodyWeightLogs (
+        id        INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp INTEGER NOT NULL,
+        weight_kg REAL    NOT NULL CHECK (weight_kg > 0)
+      );
+      CREATE INDEX IF NOT EXISTS idx_bodyweight_ts ON BodyWeightLogs (timestamp);
+    `);
+    version = 11;
+  }
+
+  if (version === 11) {
+    // Optional per-set RPE and note. Column checks make re-entry safe (see v10).
+    const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(WorkoutSets);');
+    if (!cols.some((c) => c.name === 'rpe')) {
+      await db.execAsync(
+        `ALTER TABLE WorkoutSets ADD COLUMN rpe REAL DEFAULT NULL CHECK (rpe IS NULL OR (rpe >= 1 AND rpe <= 10));`,
+      );
+    }
+    if (!cols.some((c) => c.name === 'note')) {
+      await db.execAsync(`ALTER TABLE WorkoutSets ADD COLUMN note TEXT DEFAULT NULL;`);
+    }
+    version = 12;
   }
 
   await db.execAsync(`PRAGMA user_version = ${version};`);

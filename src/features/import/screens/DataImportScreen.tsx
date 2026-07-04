@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { ImportService } from '../services/ImportService';
 import { useRepository } from '@/features/workout/hooks/useRepository';
@@ -25,25 +26,28 @@ Format:
   {
     "day": "PUSH",
     "exercises": [
-      { "name": "Exercise Name", "isCompound": true, "sets": 3 }
+      { "name": "Bench Press", "isCompound": true, "sets": 3, "repMin": 8, "repMax": 12, "muscleGroup": "Chest" }
     ]
   }
 ]
 
 Rules:
 - Output an array of workout days (e.g. 3–5 days depending on my goal)
+- Use common exercise names (e.g. "Barbell Bench Press - Medium Grip", "Pullups", "Barbell Curl")
 - isCompound: true for multi-joint moves (bench, squat, row, press, deadlift, pull-up); false for single-joint (curl, lateral raise, pushdown, fly)
 - sets: the number of working sets for the exercise (e.g. 3)
+- repMin/repMax: the target rep range for each set (e.g. 8 and 12)
+- muscleGroup: exactly one of Abs, Back, Biceps, Calf, Chest, Forearms, Legs, Shoulders, Triceps
 - Day names should be descriptive: PUSH, PULL, LEGS, SHOULDERS, BACK + ARMS, FULL BODY, etc.
 
 My goal: [REPLACE — e.g. "build muscle, 4 days/week, intermediate"]`;
 
 export default function DataImportScreen() {
+  const router = useRouter();
   const repo = useRepository();
   const qc = useQueryClient();
   const service = React.useMemo(() => new ImportService(repo), [repo]);
 
-  const [mode, setMode] = useState<'plan' | 'session'>('plan');
   const [json, setJson] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'error'>('idle');
   const [message, setMessage] = useState('');
@@ -62,17 +66,14 @@ export default function DataImportScreen() {
   const handleImport = useCallback(async () => {
     if (!json.trim()) return;
     setStatus('loading');
-    const result = await service.importJSON(json, mode);
+    const result = await service.importJSON(json);
     if (result.ok) {
       setStatus('ok');
-      setMessage(
-        mode === 'plan'
-          ? `✓ Plan updated — ${result.days} days · ${result.exercises} exercises`
-          : `✓ Session logged — ${result.days} days · ${result.exercises} exercises`,
-      );
+      setMessage(`✓ Plan imported & set active — ${result.days} days · ${result.exercises} exercises`);
       setJson('');
       qc.invalidateQueries({ queryKey: EXERCISES_KEY });
-      qc.invalidateQueries({ queryKey: ['history'] });
+      // The import lands as a new active plan — the Plans tab must refetch too.
+      qc.invalidateQueries({ queryKey: ['plans'] });
     } else {
       setStatus('error');
       setMessage(result.error);
@@ -83,32 +84,14 @@ export default function DataImportScreen() {
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-        <Text style={styles.title}>Log with AI</Text>
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={Colors.primary} />
+        </TouchableOpacity>
 
-        {/* Mode toggle */}
-        <View style={styles.toggle}>
-          <TouchableOpacity
-            style={[styles.toggleBtn, mode === 'plan' && styles.toggleBtnActive]}
-            onPress={() => setMode('plan')}
-          >
-            <Text style={[styles.toggleBtnText, mode === 'plan' && styles.toggleBtnTextActive]}>
-              Update Plan
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.toggleBtn, mode === 'session' && styles.toggleBtnActive]}
-            onPress={() => setMode('session')}
-          >
-            <Text style={[styles.toggleBtnText, mode === 'session' && styles.toggleBtnTextActive]}>
-              Log Session
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <Text style={styles.title}>Plan with AI</Text>
 
         <Text style={styles.sub}>
-          {mode === 'plan'
-            ? 'Updates your weekly exercise list. Re-importing the same plan is safe — no duplicate history.'
-            : 'Records a completed workout in your history. Each import creates a new session entry.'}
+          Imports a weekly plan and sets it active. Re-importing is safe — each import lands as its own plan, and your logged history is never touched.
         </Text>
 
         {/* Step 1 */}
@@ -191,11 +174,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
   scroll: { padding: Spacing.lg, paddingBottom: 60 },
   title: { color: Colors.textPrimary, fontSize: FontSize.xxl, fontWeight: '900', marginBottom: Spacing.sm },
-  toggle: { flexDirection: 'row', backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md, padding: 4, marginBottom: Spacing.sm },
-  toggleBtn: { flex: 1, paddingVertical: Spacing.sm, alignItems: 'center', borderRadius: Radius.sm },
-  toggleBtnActive: { backgroundColor: Colors.surface, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 2, elevation: 2 },
-  toggleBtnText: { color: Colors.textSecondary, fontSize: FontSize.sm, fontWeight: '600' },
-  toggleBtnTextActive: { color: Colors.primary, fontWeight: '700' },
+  backBtn: { marginBottom: Spacing.sm, alignSelf: 'flex-start' },
   sub: { color: Colors.textSecondary, fontSize: FontSize.sm, lineHeight: 20, marginBottom: Spacing.lg },
 
   step: {

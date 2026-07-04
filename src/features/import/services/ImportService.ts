@@ -1,5 +1,6 @@
 import { AIImportSchema, type AIImportPayload } from '@/core/database/types';
 import type { IWorkoutRepository } from '@/features/workout/services/IWorkoutRepository';
+import { resolveImport } from './catalogMatch';
 
 export type ImportResult =
   | { ok: true; days: number; exercises: number }
@@ -8,7 +9,7 @@ export type ImportResult =
 export class ImportService {
   constructor(private readonly repo: IWorkoutRepository) {}
 
-  async importJSON(raw: string, mode: 'plan' | 'session' = 'plan'): Promise<ImportResult> {
+  async importJSON(raw: string): Promise<ImportResult> {
     const cleaned = raw
       .trim()
       // Remove code fences
@@ -41,7 +42,7 @@ export class ImportService {
     const totalExercises = payload.reduce((sum, d) => sum + d.exercises.length, 0);
 
     try {
-      await this.repo.importBatch(payload, Date.now(), mode);
+      await this.repo.importBatch(resolveImport(payload), Date.now());
       return { ok: true, days: payload.length, exercises: totalExercises };
     } catch (err) {
       return {
