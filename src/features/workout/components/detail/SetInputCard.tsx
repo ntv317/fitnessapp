@@ -159,11 +159,11 @@ export function SetInputCard({
       <View style={styles.row}>
         <View style={styles.field}>
           <AppText variant="labelMono" upper color={Colors.textMuted}>Weight ({unit})</AppText>
-          <StepperInput value={weightText} onChangeText={handleWeightChange} step={weightStep} decimal color={accent} />
+          <StepperInput value={weightText} onChangeText={handleWeightChange} step={weightStep} decimal color={accent} style={styles.stepper} />
         </View>
         <View style={styles.field}>
           <AppText variant="labelMono" upper color={Colors.textMuted}>Reps</AppText>
-          <StepperInput value={repsText} onChangeText={handleRepsChange} step={1} color={accent} />
+          <StepperInput value={repsText} onChangeText={handleRepsChange} step={1} color={accent} style={styles.stepper} />
         </View>
 
         <TouchableOpacity
@@ -195,7 +195,7 @@ export function SetInputCard({
         <View style={styles.extrasRow}>
           <View style={styles.rpeField}>
             <AppText variant="labelMono" upper color={Colors.textMuted}>RPE</AppText>
-            <StepperInput value={rpeText} onChangeText={setRpeText} step={0.5} min={0} decimal color={accent} placeholder="—" />
+            <StepperInput value={rpeText} onChangeText={setRpeText} step={0.5} min={0} decimal color={accent} placeholder="—" style={styles.rpeStepper} />
           </View>
           <View style={styles.noteField}>
             <AppText variant="labelMono" upper color={Colors.textMuted}>Note</AppText>
@@ -249,6 +249,9 @@ const styles = StyleSheet.create({
   editHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   row: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
   field: { flex: 1, gap: 4 },
+  // Same height as actionBtn so the row's bottom-aligned children line up flush.
+  stepper: { height: 52 },
+  rpeStepper: { height: 44 },
   actionBtn: {
     width: 52,
     height: 52,

@@ -7,6 +7,10 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { format } from 'date-fns';
+// Deep import: the package index pulls in BarChart, whose gradient helper
+// throws at load unless react-native-linear-gradient / expo-linear-gradient is
+// installed. LineChart itself only needs react-native-svg.
+import { LineChart } from 'react-native-gifted-charts/dist/LineChart';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { useUnit } from '@/core/context/UnitContext';
 import type { WorkoutLog } from '@/core/database/types';
@@ -20,9 +24,9 @@ interface Props {
   metrics?: { key: Metric; label: string }[];
 }
 
-const CHART_H  = 140;
+const CHART_H  = 160;
 const MAX_SESS = 20;
-const STROKE   = 2.5;
+const Y_AXIS_W = 36;
 
 const BASE_METRICS: { key: Metric; label: string }[] = [
   { key: 'maxWeight', label: 'Max'      },
@@ -72,31 +76,23 @@ export function ProgressChart({ logs, color = Colors.primary, metrics: metricsPr
 
   const onLayout = (e: LayoutChangeEvent) => setChartW(e.nativeEvent.layout.width);
 
-  const values = data.map((d) => d[metric]);
-  const isPR   = values[values.length - 1] >= Math.max(...values.slice(0, -1));
-  const yMin   = Math.min(...values);
-  const yMax   = Math.max(...values);
-  const yRange = yMax - yMin || yMax * 0.1 || 1;
-  const yPad   = yRange * 0.22;
-
-  const sx = (i: number) => chartW > 0 ? (i / (data.length - 1)) * chartW : 0;
-  const sy = (v: number) => CHART_H - ((v - yMin + yPad) / (yRange + yPad * 2)) * CHART_H;
-
-  const pts  = data.map((d, i) => ({ x: sx(i), y: sy(d[metric]) }));
-  const last = pts[pts.length - 1];
-
-  const labelTop  = Math.max(2, last.y - 18);
-  const labelLeft = last.x > chartW * 0.7 ? last.x - 40 : last.x + 8;
-
   // bestReps is a rep count, not a weight — kg/lbs conversion doesn't apply to it.
-  const convert   = metric === 'bestReps' ? (v: number) => v : fromKg;
-  const first     = data[0];
-  const lastD     = data[data.length - 1];
-  const dispFirst = convert(first[metric]);
-  const dispLast  = convert(lastD[metric]);
+  const convert = metric === 'bestReps' ? (v: number) => v : fromKg;
+  const values  = data.map((d) => convert(d[metric]));
+  const isPR    = values[values.length - 1] >= Math.max(...values.slice(0, -1));
+
+  const yMin    = Math.min(...values);
+  const yMax    = Math.max(...values);
+  const yRange  = yMax - yMin || yMax * 0.1 || 1;
+  const yPad    = yRange * 0.25;
+  const yOffset = Math.max(0, Math.floor(yMin - yPad));
+  const yTop    = Math.ceil(yMax + yPad);
+
+  const dispFirst = values[0];
+  const dispLast  = values[values.length - 1];
   const delta     = dispLast - dispFirst;
   const sign      = delta >= 0 ? '+' : '';
-  const pct       = first[metric] > 0 ? `${sign}${((delta / dispFirst) * 100).toFixed(0)}%` : '';
+  const pct       = dispFirst > 0 ? `${sign}${((delta / dispFirst) * 100).toFixed(0)}%` : '';
   const deltaAmt  = `${sign}${Math.abs(delta) < 1 ? delta.toFixed(1) : Math.round(delta)}`;
   const unit      = metric === 'volume' ? `${weightUnit} vol` : metric === 'bestReps' ? 'reps' : weightUnit;
   const dColor    = delta >= 0 ? Colors.success : Colors.danger;
@@ -128,83 +124,42 @@ export function ProgressChart({ logs, color = Colors.primary, metrics: metricsPr
         </View>
       </View>
 
-
-      <View style={{ height: CHART_H, overflow: 'hidden' }} onLayout={onLayout}>
+      <View onLayout={onLayout}>
         {chartW > 0 && (
-          <>
-            {[0.25, 0.5, 0.75].map((t) => (
-              <View key={t} style={[s.grid, { top: CHART_H * t }]} />
-            ))}
-
-            {pts.slice(0, -1).map((p1, i) => {
-              const p2  = pts[i + 1];
-              const dx  = p2.x - p1.x;
-              const dy  = p2.y - p1.y;
-              const len = Math.sqrt(dx * dx + dy * dy);
-              const deg = Math.atan2(dy, dx) * (180 / Math.PI);
-              const r   = 2.5;
-              return (
-                <React.Fragment key={i}>
-                  <View
-                    style={{
-                      position:        'absolute',
-                      left:            p1.x,
-                      top:             Math.min(p1.y, p2.y),
-                      width:           p2.x - p1.x,
-                      height:          CHART_H - Math.min(p1.y, p2.y),
-                      backgroundColor: color,
-                      opacity:         0.08,
-                    }}
-                  />
-                  <View
-                    style={{
-                      position:        'absolute',
-                      left:            (p1.x + p2.x) / 2 - len / 2,
-                      top:             (p1.y + p2.y) / 2 - STROKE / 2,
-                      width:           len,
-                      height:          STROKE,
-                      backgroundColor: color,
-                      borderRadius:    STROKE,
-                      transform:       [{ rotate: `${deg}deg` }],
-                    }}
-                  />
-                  <View
-                    style={{
-                      position:        'absolute',
-                      left:            p1.x - r,
-                      top:             p1.y - r,
-                      width:           r * 2,
-                      height:          r * 2,
-                      borderRadius:    r,
-                      backgroundColor: Colors.surface,
-                      borderWidth:     1.5,
-                      borderColor:     color,
-                    }}
-                  />
-                </React.Fragment>
-              );
-            })}
-
-            <View
-              style={{
-                position:        'absolute',
-                left:            last.x - 6,
-                top:             last.y - 6,
-                width:           12,
-                height:          12,
-                borderRadius:    6,
-                backgroundColor: color,
-                shadowColor:     color,
-                shadowOffset:    { width: 0, height: 2 },
-                shadowOpacity:   0.4,
-                shadowRadius:    4,
-                elevation:       3,
-              }}
-            />
-            <Text style={[s.valLabel, { color, top: labelTop, left: labelLeft }]}>
-              {convert(values[values.length - 1])}
-            </Text>
-          </>
+          <LineChart
+            key={`${metric}-${chartW}`}
+            data={values.map((value) => ({ value }))}
+            width={chartW - Y_AXIS_W}
+            height={CHART_H}
+            adjustToWidth
+            disableScroll
+            curved
+            areaChart
+            thickness={3}
+            color={color}
+            startFillColor={color}
+            endFillColor={color}
+            startOpacity={0.22}
+            endOpacity={0.02}
+            yAxisOffset={yOffset}
+            maxValue={yTop - yOffset}
+            noOfSections={4}
+            initialSpacing={10}
+            endSpacing={10}
+            rulesType="dashed"
+            rulesColor={Colors.border}
+            dashWidth={4}
+            dashGap={5}
+            yAxisColor="transparent"
+            xAxisColor={Colors.border}
+            yAxisLabelWidth={Y_AXIS_W}
+            yAxisTextStyle={{ color: Colors.textMuted, fontSize: 10 }}
+            formatYLabel={(l: string) => {
+              const n = Number(l);
+              return Number.isInteger(n) ? String(n) : n.toFixed(1);
+            }}
+            customDataPoint={() => <View style={[s.dot, { backgroundColor: color }]} />}
+          />
         )}
       </View>
 
@@ -258,18 +213,12 @@ const s = StyleSheet.create({
     borderRadius:      Radius.full,
   },
   deltaText: { fontSize: FontSize.xs, fontWeight: '700' },
-  grid: {
-    position:        'absolute',
-    left:            0,
-    right:           0,
-    height:          1,
-    backgroundColor: Colors.border,
-    opacity:         0.6,
-  },
-  valLabel: {
-    position:   'absolute',
-    fontSize:   FontSize.xs,
-    fontWeight: '800',
+  dot: {
+    width:        12,
+    height:       12,
+    borderRadius: 6,
+    borderWidth:  2.5,
+    borderColor:  Colors.surface,
   },
   xRow: {
     flexDirection:  'row',

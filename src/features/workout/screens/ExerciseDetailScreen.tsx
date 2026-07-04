@@ -34,6 +34,7 @@ import {
 } from '../../../../modules/live-activity';
 import { ImageCarousel } from '@/features/library/components/ImageCarousel';
 import { getById } from '@/features/library/services/ExerciseCatalog';
+import { findClosestCatalogMatch, normalizeName } from '@/features/import/services/catalogMatch';
 import { ChartTabs } from '../components/detail/ChartTabs';
 import { SetInputCard, type EditingSetData } from '../components/detail/SetInputCard';
 import { SessionHistoryList } from '../components/detail/SessionHistoryList';
@@ -296,17 +297,28 @@ export default function ExerciseDetailScreen() {
   }, [exerciseId, qc]));
   const { data: allDays = [] } = useAllDays();
   const exercise = exercises.find((e) => e.id === exerciseId);
-  const catalogExercise = exercise?.catalogId ? getById(exercise.catalogId) : undefined;
+  // Exercises created from plans/AI import may lack a catalog link — fall back
+  // to a name match so the Log-tab flow shows the same images and muscle/
+  // equipment info as the library flow.
+  const catalogExercise = useMemo(() => {
+    if (!exercise) return undefined;
+    if (exercise.catalogId) return getById(exercise.catalogId);
+    return findClosestCatalogMatch(exercise.name) ?? undefined;
+  }, [exercise]);
   // Header meta, matching the library preview screen: mechanic • worked
   // muscles • equipment (e.g. "COMPOUND • ABDOMINALS • BODY ONLY").
-  // Custom/AI-imported exercises have no catalog link, so those show only
-  // compound/isolation.
+  // Exercises with no catalog match show only compound/isolation. A near match
+  // (name fallback) keeps muscles but drops equipment — a "Bench Press" matched
+  // to "Bench Press - With Bands" must not claim bands.
+  const isExactCatalog =
+    !!catalogExercise &&
+    (!!exercise?.catalogId || normalizeName(catalogExercise.name) === normalizeName(exercise?.name ?? ''));
   const metaLabel = [
     exercise?.isCompound ? 'Compound' : 'Isolation',
     catalogExercise
       ? [...catalogExercise.primaryMuscles, ...catalogExercise.secondaryMuscles].slice(0, 3).join(' / ')
       : null,
-    catalogExercise?.equipment ?? null,
+    isExactCatalog ? catalogExercise?.equipment ?? null : null,
   ]
     .filter(Boolean)
     .join(' • ');
@@ -576,8 +588,10 @@ export default function ExerciseDetailScreen() {
         pathname: '/workout/summary',
         params: { day: params.day ?? '', startTime: String(startTimeRef.current), color: accent },
       } as never);
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      router.replace('/');
     }
   }, [priorHistory, exercise, accent, params.day]);
 
@@ -655,7 +669,7 @@ export default function ExerciseDetailScreen() {
       <View style={styles.appBar}>
         <View style={styles.appBarLeft}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <Ionicons name="chevron-back" size={24} color={Colors.primary} />
@@ -692,8 +706,6 @@ export default function ExerciseDetailScreen() {
           </View>
         )}
 
-        <ChartTabs logs={history} accent={accent} />
-
         <SetInputCard
           accent={accent}
           loggedCount={loggedCount}
@@ -706,6 +718,8 @@ export default function ExerciseDetailScreen() {
           onDelete={handleDeleteSet}
           onCancelEdit={handleCancelEdit}
         />
+
+        <ChartTabs logs={history} accent={accent} />
 
         <SessionHistoryList logs={history} accent={accent} onEditSet={handleEditSet} />
       </ScrollView>

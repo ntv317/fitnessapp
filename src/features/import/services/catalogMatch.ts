@@ -13,14 +13,57 @@ export function normalizeName(name: string): string {
 
 let nameIndex: Map<string, CatalogExercise> | null = null;
 
-export function findCatalogMatch(name: string): CatalogExercise | null {
+function getIndex(): Map<string, CatalogExercise> {
   if (!nameIndex) {
     // Deferred require: parsing the ~0.8MB catalog JSON must not happen until
     // the first import actually runs (see ExerciseCatalog module note).
     const { getAll } = require('@/features/library/services/ExerciseCatalog') as typeof import('@/features/library/services/ExerciseCatalog');
     nameIndex = new Map(getAll().map((e) => [normalizeName(e.name), e]));
   }
-  return nameIndex.get(normalizeName(name)) ?? null;
+  return nameIndex;
+}
+
+export function findCatalogMatch(name: string): CatalogExercise | null {
+  return getIndex().get(normalizeName(name)) ?? null;
+}
+
+// Common gym shorthand the catalog spells out ("Incline DB Press" →
+// "Incline Dumbbell Press").
+const ALIASES: Record<string, string> = { db: 'dumbbell', bb: 'barbell' };
+
+/**
+ * Looser match for display-only fallbacks (images/instructions on the logging
+ * screen): exact first, else the shortest catalog name containing the query as
+ * a whole-word phrase (e.g. "Bench Press" → "Bench Press - With Bands").
+ * Import resolution must keep using findCatalogMatch — a near match must never
+ * rename or relink a stored exercise.
+ */
+export function findClosestCatalogMatch(name: string): CatalogExercise | null {
+  const q = normalizeName(name)
+    .split(' ')
+    .map((w) => ALIASES[w] ?? w)
+    .join(' ');
+  const index = getIndex();
+  const exact = index.get(q);
+  if (exact) return exact;
+  if (q.length < 4) return null;
+  let best: CatalogExercise | null = null;
+  let bestKey = '';
+  let bestStarts = false;
+  for (const [key, ex] of index) {
+    if (!` ${key} `.includes(` ${q} `)) continue;
+    const starts = key.startsWith(q);
+    if (
+      !best ||
+      (starts && !bestStarts) ||
+      (starts === bestStarts && key.length < bestKey.length)
+    ) {
+      best = ex;
+      bestKey = key;
+      bestStarts = starts;
+    }
+  }
+  return best;
 }
 
 export function normalizeGroup(input: string | undefined): MuscleGroup | null {
