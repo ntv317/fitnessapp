@@ -1,23 +1,28 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet, ActionSheetIOS } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
+import { View, ScrollView, TouchableOpacity, StyleSheet, ActionSheetIOS, Alert, Keyboard } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
-import { AppText, Card, StepperInput } from '@/core/ui';
+import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
 import { useExercises, useAllDays } from '../hooks/useExercises';
-import { useAutoSaveSet, useWorkoutLogs, useWeeklyProgress, historyKey } from '../hooks/useWorkoutLogs';
+import {
+  useAutoSaveSet,
+  useWorkoutLogs,
+  useWeeklyProgress,
+  useUpdateSet,
+  useDeleteSet,
+  historyKey,
+} from '../hooks/useWorkoutLogs';
 import { DEFAULT_TARGET_SETS, weeklyKey } from '../utils/progress';
+import { formatRepRange, clampReps } from '../utils/repRange';
 import { weekStartOf } from '@/core/utils/date';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWatchSync, type WatchSetLogged } from '../hooks/useWatchSync';
 import { useBarbellConfig } from '../hooks/useBarbellConfig';
 import { calculatePlates } from '@/core/utils/plateCalculator';
-import { PlateChips } from '@/core/ui/PlateChips';
-import { ProgressChart } from '@/features/history/components/ProgressChart';
 import { detectPR } from '../utils/pr';
 import { startSession, addExerciseResult, getSession } from '../utils/workoutSession';
 import { formatWeight } from '@/core/utils/format';
@@ -27,6 +32,12 @@ import {
   updateRestActivity,
   stopRestActivity,
 } from '../../../../modules/live-activity';
+import { ImageCarousel } from '@/features/library/components/ImageCarousel';
+import { getById } from '@/features/library/services/ExerciseCatalog';
+import { ChartTabs } from '../components/detail/ChartTabs';
+import { SetInputCard, type EditingSetData } from '../components/detail/SetInputCard';
+import { SessionHistoryList } from '../components/detail/SessionHistoryList';
+import type { WorkoutLog } from '@/core/database/types';
 
 // Per-screen-instance so auto-advance (replace mounts the next exercise before
 // this one unmounts) can't cancel the new screen's pending notification.
@@ -58,16 +69,6 @@ function useRestNotification() {
   return { schedule, cancel };
 }
 const MARGIN = 20; // margin-mobile
-
-interface SetState {
-  id: number;
-  weight: string; // as typed, in active unit
-  reps: string;
-  done: boolean;
-}
-
-let _setIdCounter = 0;
-const nextSetId = () => ++_setIdCounter;
 
 interface CelebrateData {
   exerciseName: string;
@@ -261,6 +262,12 @@ function RestTimerOverlay({
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
+interface LoggedSet {
+  setOrder: number;
+  weight: number; // kg
+  reps: number;
+}
+
 export default function ExerciseDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; color?: string; day?: string; startTime?: string }>();
@@ -269,7 +276,7 @@ export default function ExerciseDetailScreen() {
   const startTimeRef = useRef(params.startTime ? parseInt(params.startTime) : Date.now());
   const [celebrateData, setCelebrateData] = useState<CelebrateData | null>(null);
 
-  const { unit, toKg, fromKg, conversionHint, showConversion, showPlateBreakdown } = useUnit();
+  const { unit, toKg, fromKg, showConversion, showPlateBreakdown } = useUnit();
   const { schedule: scheduleRestNotification, cancel: cancelRestNotification } = useRestNotification();
 
   // Ask once up front so the permission dialog doesn't interrupt the first rest.
@@ -277,7 +284,9 @@ export default function ExerciseDetailScreen() {
     Notifications.requestPermissionsAsync().catch(() => {});
   }, []);
   const { config: barbellConfig } = useBarbellConfig();
-  const saveSet = useAutoSaveSet();
+  const { saveSet, resetLogCache } = useAutoSaveSet();
+  const updateSet = useUpdateSet();
+  const deleteSet = useDeleteSet();
   const qc = useQueryClient();
   const { data: exercises = [] } = useExercises();
   const { data: history = [] } = useWorkoutLogs(exerciseId);
@@ -287,12 +296,37 @@ export default function ExerciseDetailScreen() {
   }, [exerciseId, qc]));
   const { data: allDays = [] } = useAllDays();
   const exercise = exercises.find((e) => e.id === exerciseId);
+  const catalogExercise = exercise?.catalogId ? getById(exercise.catalogId) : undefined;
+  // Header meta, matching the library preview screen: mechanic • worked
+  // muscles • equipment (e.g. "COMPOUND • ABDOMINALS • BODY ONLY").
+  // Custom/AI-imported exercises have no catalog link, so those show only
+  // compound/isolation.
+  const metaLabel = [
+    exercise?.isCompound ? 'Compound' : 'Isolation',
+    catalogExercise
+      ? [...catalogExercise.primaryMuscles, ...catalogExercise.secondaryMuscles].slice(0, 3).join(' / ')
+      : null,
+    catalogExercise?.equipment ?? null,
+  ]
+    .filter(Boolean)
+    .join(' • ');
 
   // Auto-advance targets the next INCOMPLETE exercise of the day (wrapping back
   // to skipped ones), so the summary only appears once every exercise is done.
   const thisWeekStart = useMemo(() => weekStartOf(Date.now()), []);
   const { data: weeklyMap = new Map<string, number>() } = useWeeklyProgress(thisWeekStart);
-  const dayTag = params.day ?? null;
+  // Launched from the Log tab, `day` is always given. Launched from the library
+  // (no `day` param), auto-attach to the exercise's day in the active plan so
+  // the set counts toward that day's weekly progress instead of silently
+  // logging as freeform. Exercises not in any plan day fall back to null
+  // (genuinely freeform), same as before.
+  //
+  // Auto-advance/next-exercise chaining below stays keyed on the raw route
+  // param, not this resolved value — it's a Log-tab-specific workflow that
+  // must stay off for library launches (chaining into the next exercise would
+  // pass day='' to it, which is a non-null string that blocks this same
+  // fallback from re-resolving on the next screen).
+  const dayTag = params.day ?? exercise?.dayTag ?? null;
   const dayExercises = allDays.find((d) => d.dayTag === params.day)?.exercises ?? [];
   const curIdx = dayExercises.findIndex((e) => e.id === exerciseId);
   const remaining = dayExercises.filter((e) => {
@@ -303,42 +337,75 @@ export default function ExerciseDetailScreen() {
   const nextExercise =
     remaining.find((e) => dayExercises.indexOf(e) > curIdx) ?? remaining[0] ?? null;
 
-  const [sets, setSets] = useState<SetState[]>(
-    Array.from({ length: 3 }, () => ({ id: nextSetId(), weight: '', reps: '', done: false })),
+  // dayExercises comes from getAllDays(), which already overrides targetSets with
+  // the active plan's per-day PlanExercises.target_sets — prefer that over the
+  // exercise's own base target_sets so editing a plan's set count actually reaches
+  // the logging screen (the Log tab already reads dayExercises the same way).
+  const planEntry = dayExercises.find((e) => e.id === exerciseId);
+  const targetSource = planEntry ?? exercise;
+  const target = targetSource && targetSource.targetSets > 0 ? targetSource.targetSets : DEFAULT_TARGET_SETS;
+  const repRangeLabel = formatRepRange(planEntry?.repMin, planEntry?.repMax);
+
+  // Today's log for this day, derived straight from history. Recomputed every
+  // render (not memoized once at mount) — a session left open across midnight
+  // must roll over to a new "today" boundary, matching what the repository's
+  // getTodayLogId/createLog already compute fresh on every save.
+  const todayBoundary = new Date();
+  todayBoundary.setHours(0, 0, 0, 0);
+  const startOfToday = todayBoundary.getTime();
+  const todayLog = history.find((l) => l.timestamp >= startOfToday && (l.dayTag ?? null) === dayTag);
+  const priorSession = history.find((l) => l !== todayLog);
+  // detectPR compares today's sets against history — once today's own sets are
+  // saved and refetched, `history` includes them too, which would make a PR
+  // impossible to ever detect (today always ties itself). Compare against
+  // everything BEFORE today instead.
+  const priorHistory = todayLog ? history.filter((l) => l.id !== todayLog.id) : history;
+
+  // Optimistic local mirror of today's logged sets, so completing a set (or the
+  // watch logging one) updates the UI/rest-timer/watch-state immediately instead
+  // of waiting on the query-invalidation round trip. Resynced from the server
+  // once on load; after that, every mutation updates it directly.
+  const [todaySets, setTodaySets] = useState<LoggedSet[]>([]);
+  const touchedRef = useRef(false);
+  // Guards the celebration overlay to fire once per target-crossing, not on
+  // every rest-end after — otherwise logging freeform sets beyond the target
+  // re-celebrates (and auto-advances away) on every single one.
+  const celebratedRef = useRef(false);
+  useEffect(() => {
+    if (touchedRef.current) return;
+    const seeded = (todayLog?.sets ?? []).map((s) => ({ setOrder: s.setOrder, weight: s.weight, reps: s.reps }));
+    setTodaySets(seeded);
+    celebratedRef.current = seeded.length >= target;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [todayLog]);
+  const todaySetsRef = useRef(todaySets);
+  todaySetsRef.current = todaySets;
+
+  const loggedCount = todaySets.length;
+  const suggestedWeight = priorSession ? Math.max(...priorSession.sets.map((s) => s.weight), 0) : 0;
+  const suggestedReps = priorSession?.sets[0]?.reps ?? 10;
+  // Takes an explicit loggedN (rather than closing over `loggedCount`) so
+  // pushWatchState can compute the prefill for the set AFTER whatever was just
+  // logged, using the fresh count passed to it — not a stale pre-increment
+  // value from this render.
+  const prefillFor = useCallback(
+    (loggedN: number) => {
+      const atNext = priorSession?.sets.find((s) => s.setOrder === loggedN + 1) ?? priorSession?.sets[loggedN];
+      return {
+        weightKg: atNext && atNext.weight > 0 ? atNext.weight : suggestedWeight,
+        // Keep the suggestion inside the plan's rep range so a stale history
+        // value doesn't propose reps the plan no longer prescribes.
+        reps: clampReps(atNext && atNext.reps > 0 ? atNext.reps : suggestedReps, planEntry?.repMin, planEntry?.repMax),
+      };
+    },
+    [priorSession, suggestedWeight, suggestedReps, planEntry],
   );
+  const { weightKg: prefillWeightKg, reps: prefillReps } = prefillFor(loggedCount);
+
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
   const [restKey, setRestKey] = useState(0);
+  const [editing, setEditing] = useState<EditingSetData | null>(null);
 
-  // Watch sync
-  const setsRef = useRef(sets);
-  setsRef.current = sets;
-
-  // Becomes true once the user types/steps/logs, so auto pre-fill stops.
-  const touchedRef = useRef(false);
-
-  // When the user changes their unit preference mid-session, convert every
-  // typed weight string from the old unit to the new one so the physical load
-  // stays the same (100 kg → 220 lbs, not 100 lbs).
-  const prevUnitRef = useRef(unit);
-  useEffect(() => {
-    const prevUnit = prevUnitRef.current;
-    prevUnitRef.current = unit;
-    if (prevUnit === unit) return;
-    const KG_PER_LB = 0.45359237;
-    const oldToKg = (v: number) => prevUnit === 'kg' ? v : v * KG_PER_LB;
-    setSets(prev => prev.map(s => {
-      const typed = parseFloat(s.weight);
-      if (!typed) return s;
-      const converted = Math.round(fromKg(oldToKg(typed)) * 10) / 10;
-      return { ...s, weight: String(converted) };
-    }));
-  // fromKg already reflects the new unit; prevUnitRef tracks the old one
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unit]);
-
-  // Sets logged from the wrist are handled by `completeSet` (defined below, once
-  // pushWatchState/rest state exist). We route through a ref so the native
-  // listener can call into that later-defined logic without a TDZ error.
   const handleWatchSetRef = useRef<(p: WatchSetLogged) => void>(() => {});
   const handleSkipRef = useRef<() => void>(() => {});
 
@@ -349,79 +416,30 @@ export default function ExerciseDetailScreen() {
 
   const weightStep = unit === 'kg' ? 2.5 : 5;
 
-  // First not-done row is the "active" row (primary border).
-  const activeIdx = sets.findIndex((s) => !s.done);
-
-  // Suggested values come from the last logged session (first history entry)
-  const lastSession = history[0];
-  const suggestedWeight = lastSession
-    ? Math.max(...lastSession.sets.map((s) => s.weight), 0)
-    : 0;
-  const suggestedReps = lastSession?.sets[0]?.reps ?? 10;
-
-  // Size the table to the planned set count AND pre-fill each row with the last
-  // session's weight/reps, so the screen opens on your previous numbers (not 0).
-  // Depends on `history` (not the derived scalars) so the effect re-runs when
-  // history arrives from the DB — even when the derived values happen to equal
-  // the initial defaults (e.g. weight=0 or reps=10 from an AI-imported session).
-  useEffect(() => {
-    if (touchedRef.current || !exercise) return;
-    // Sets already logged today FOR THIS DAY re-open as ticked rows with their
-    // logged values; suggestions for the rest come from the last prior session.
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-    const todayLog = history.find(
-      (l) => l.timestamp >= startOfToday.getTime() && (l.dayTag ?? null) === dayTag,
-    );
-    const session = history.find((l) => l !== todayLog);
-    const target = exercise.targetSets > 0 ? exercise.targetSets : 3;
-    const n = Math.max(target, todayLog?.sets.length ?? 0);
-    const newSets = Array.from({ length: n }, (_, i) => {
-      const logged = todayLog?.sets.find((s) => s.setOrder === i + 1);
-      if (logged) {
-        return {
-          id: nextSetId(),
-          weight: String(Math.round(fromKg(logged.weight) * 10) / 10),
-          reps: String(logged.reps),
-          done: true,
-        };
-      }
-      // Match by setOrder (1-based) so set 1 gets set 1's values, set 2 gets set 2's, etc.
-      const prev = session?.sets.find((s) => s.setOrder === i + 1) ?? session?.sets[i];
-      const w = prev && prev.weight > 0 ? String(Math.round(fromKg(prev.weight) * 10) / 10) : '';
-      const r = prev && prev.reps > 0 ? String(prev.reps) : '';
-      return { id: nextSetId(), weight: w, reps: r, done: false };
-    });
-    setSets(newSets);
-    pushWatchState(newSets, false, exercise.defaultRestSeconds);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exercise, history, fromKg]);
-
   const pushWatchState = useCallback(
-    (updatedSets: SetState[], isResting: boolean, restDuration: number) => {
-      const nextIdx = updatedSets.findIndex((s) => !s.done);
-      const setNumber = nextIdx >= 0 ? nextIdx + 1 : updatedSets.length;
-      const typedKg = nextIdx >= 0 ? toKg(parseFloat(updatedSets[nextIdx].weight) || 0) : 0;
-      const weightForPlates = typedKg > 0 ? typedKg : suggestedWeight;
+    (updatedSets: LoggedSet[], isResting: boolean, restDuration: number) => {
+      const loggedN = updatedSets.length;
+      const { weightKg: nextWeightKg, reps: nextReps } = prefillFor(loggedN);
+      const weightForPlates = nextWeightKg > 0 ? nextWeightKg : suggestedWeight;
       const { plates } = calculatePlates(weightForPlates, barbellConfig.barWeight, barbellConfig.plates);
       sendWorkoutState({
         exerciseName: exercise?.name ?? '',
-        setNumber,
-        totalSets: updatedSets.length,
-        suggestedReps,
+        setNumber: loggedN + 1,
+        totalSets: Math.max(target, loggedN),
+        suggestedReps: nextReps || suggestedReps,
         suggestedWeight: fromKg(weightForPlates),
         restDuration,
         isResting,
-        isWorkoutComplete: false,
+        isWorkoutComplete: loggedN >= target && !isResting,
         unit,
         weightStep,
-        plateBreakdown: plates.map(p => Math.round(fromKg(p) * 10) / 10),
+        plateBreakdown: plates.map((p) => Math.round(fromKg(p) * 10) / 10),
         showWeightConversion: showConversion,
         showPlateBreakdown,
         accentColor: accent,
       });
     },
-    [exercise, suggestedReps, suggestedWeight, sendWorkoutState, toKg, fromKg, unit, weightStep, barbellConfig, showConversion],
+    [exercise, target, prefillFor, suggestedWeight, suggestedReps, sendWorkoutState, fromKg, unit, weightStep, barbellConfig, showConversion, showPlateBreakdown, accent],
   );
 
   // Start session tracking on the very first exercise (no startTime in params).
@@ -435,7 +453,7 @@ export default function ExerciseDetailScreen() {
     } else {
       startSession(startTimeRef.current);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Leaving the screen mid-rest must not leave a stale lock-screen countdown.
@@ -447,68 +465,54 @@ export default function ExerciseDetailScreen() {
   // Push initial state when exercise loads
   useEffect(() => {
     if (!exercise) return;
-    pushWatchState(sets, false, exercise.defaultRestSeconds);
+    pushWatchState(todaySetsRef.current, false, exercise.defaultRestSeconds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [exercise?.id]);
 
-  // Single source of truth for completing a set — used by both the on-screen
-  // "done" checkbox and sets logged from the watch. Marks the row done, persists
-  // it, starts the rest timer on the phone, and pushes the new state (with the
-  // advanced set number + isResting) to the watch so its countdown begins.
+  // Single source of truth for logging a new set — used by both the "+" button
+  // and sets logged from the watch. Appends it, persists it, starts the rest
+  // timer on the phone, and pushes the new state to the watch.
   const completeSet = useCallback(
-    (index: number, repsNum: number, weightKg: number) => {
+    (weightKg: number, repsNum: number, rpe: number | null = null, note: string | null = null) => {
       if (!repsNum) return;
       touchedRef.current = true;
-      const display = String(Math.round(fromKg(weightKg) * 10) / 10);
-      const updatedSets = setsRef.current.map((r, i) =>
-        i === index ? { ...r, weight: display, reps: String(repsNum), done: true } : r,
-      );
-      setSets(updatedSets);
-      saveSet(exerciseId, index + 1, repsNum, weightKg, dayTag).catch(() => {});
+      const setOrder = todaySetsRef.current.length + 1;
+      const updated = [...todaySetsRef.current, { setOrder, weight: weightKg, reps: repsNum }];
+      // Written synchronously (not just via the render-driven assignment below)
+      // so a second call in the same tick — e.g. the watch and a phone tap
+      // landing back to back — reads the incremented length, not a stale one.
+      todaySetsRef.current = updated;
+      setTodaySets(updated);
+      saveSet(exerciseId, setOrder, repsNum, weightKg, dayTag, rpe, note).catch(() => {
+        // saveSet already retried once internally — this is a genuine failure.
+        // Stop trusting the optimistic mirror and let the next history fetch
+        // (which we force here) resync it, so the screen never shows a set
+        // that isn't actually saved.
+        touchedRef.current = false;
+        qc.invalidateQueries({ queryKey: historyKey(exerciseId) });
+        Alert.alert('Set not saved', 'That set could not be saved — please log it again.');
+      });
+      // The number pad is usually still up from typing weight/reps — the rest
+      // overlay covers the whole screen, so a lingering keyboard floats over it.
+      Keyboard.dismiss();
       const rest = exercise?.defaultRestSeconds ?? 75;
       setRestSeconds(rest);
       setRestKey((k) => k + 1);
-      pushWatchState(updatedSets, true, rest);
-      const nextIdx = updatedSets.findIndex((s) => !s.done);
-      startRestActivity(
-        exercise?.name ?? '',
-        nextIdx >= 0 ? nextIdx + 1 : updatedSets.length,
-        updatedSets.length,
-        Date.now() + rest * 1000,
-        accent,
-      );
+      pushWatchState(updated, true, rest);
+      startRestActivity(exercise?.name ?? '', updated.length + 1, Math.max(target, updated.length), Date.now() + rest * 1000, accent);
       scheduleRestNotification(rest);
     },
-    [exerciseId, exercise, saveSet, fromKg, pushWatchState, accent, scheduleRestNotification, dayTag],
+    [exerciseId, exercise, saveSet, pushWatchState, accent, scheduleRestNotification, dayTag, target, qc],
   );
 
   // Wire the watch handler now that completeSet exists. Reassigned each render
-  // so it always closes over the latest completeSet.
-  handleWatchSetRef.current = ({ reps, weight, setOrder }: WatchSetLogged) => {
-    const current = setsRef.current;
-    const idx = setOrder - 1;
-    const targetIdx =
-      idx >= 0 && idx < current.length && !current[idx].done
-        ? idx
-        : current.findIndex((s) => !s.done);
-    if (targetIdx < 0) return;
-    // The watch reports weight in the active display unit; store canonical kg.
-    completeSet(targetIdx, reps, toKg(weight));
+  // so it always closes over the latest completeSet. The watch always appends
+  // at the next open slot — it has no concept of editing a past set.
+  handleWatchSetRef.current = ({ reps, weight }: WatchSetLogged) => {
+    completeSet(toKg(weight), reps);
   };
 
-  const toggleDone = useCallback(
-    (index: number) => {
-      const s = setsRef.current[index];
-      if (s.done) return;
-      const reps = parseInt(s.reps, 10);
-      const typed = parseFloat(s.weight) || 0;
-      if (!reps) return;
-      completeSet(index, reps, toKg(typed));
-    },
-    [completeSet, toKg],
-  );
-
-  // Ends the rest period (timer elapsed or user skipped). If every set is done,
+  // Ends the rest period (timer elapsed or user skipped). If the target is met,
   // shows the exercise-complete overlay; otherwise just unlocks the next set.
   const endRest = useCallback(
     (skipped = false) => {
@@ -516,27 +520,23 @@ export default function ExerciseDetailScreen() {
       stopRestActivity();
       cancelRestNotification();
       if (skipped) sendMessage({ type: 'skipRest' });
-      pushWatchState(setsRef.current, false, 0);
+      pushWatchState(todaySetsRef.current, false, 0);
 
-      const allDone = setsRef.current.length > 0 && setsRef.current.every((s) => s.done);
-      if (allDone) {
-        // Compute volume and PR for this exercise
-        const sessionSetsKg = setsRef.current.map((s) => ({
-          weight: toKg(parseFloat(s.weight) || 0),
-          reps: parseInt(s.reps) || 0,
-        }));
-        const volumeKg = sessionSetsKg.reduce((sum, s) => sum + s.weight * s.reps, 0);
-        const isPR = detectPR(sessionSetsKg, history);
+      const allDone = todaySetsRef.current.length >= target;
+      if (allDone && !celebratedRef.current) {
+        celebratedRef.current = true;
+        const volumeKg = todaySetsRef.current.reduce((sum, s) => sum + s.weight * s.reps, 0);
+        const isPR = detectPR(todaySetsRef.current, priorHistory);
         addExerciseResult({ name: exercise?.name ?? '', volumeKg, isPR });
         setCelebrateData({
           exerciseName: exercise?.name ?? '',
-          setCount: setsRef.current.length,
+          setCount: todaySetsRef.current.length,
           volumeDisplay: formatWeight(fromKg(volumeKg)),
           isPR,
         });
       }
     },
-    [sendMessage, pushWatchState, exercise, history, toKg, fromKg, cancelRestNotification],
+    [sendMessage, pushWatchState, exercise, priorHistory, fromKg, cancelRestNotification, target],
   );
 
   // Called when the celebrate overlay auto-advances or is tapped
@@ -563,16 +563,11 @@ export default function ExerciseDetailScreen() {
   // Watch "Skip Rest" routes here once endRest exists.
   handleSkipRef.current = () => endRest(false);
 
-  // Finish button — flush current exercise's done sets into session, then go to summary
+  // Finish button — flush today's logged sets into the session, then go to summary
   const handleFinish = useCallback(() => {
-    const doneSets = setsRef.current.filter((s) => s.done);
-    if (doneSets.length > 0) {
-      const sessionSetsKg = doneSets.map((s) => ({
-        weight: toKg(parseFloat(s.weight) || 0),
-        reps: parseInt(s.reps) || 0,
-      }));
-      const volumeKg = sessionSetsKg.reduce((sum, s) => sum + s.weight * s.reps, 0);
-      const isPR = detectPR(sessionSetsKg, history);
+    if (todaySetsRef.current.length > 0) {
+      const volumeKg = todaySetsRef.current.reduce((sum, s) => sum + s.weight * s.reps, 0);
+      const isPR = detectPR(todaySetsRef.current, priorHistory);
       addExerciseResult({ name: exercise?.name ?? '', volumeKg, isPR });
     }
     const session = getSession();
@@ -584,7 +579,7 @@ export default function ExerciseDetailScreen() {
     } else {
       router.back();
     }
-  }, [toKg, history, exercise, accent, params.day]);
+  }, [priorHistory, exercise, accent, params.day]);
 
   // ••• menu — two-tap protection against accidental mid-lift exits
   const handleMoreMenu = useCallback(() => {
@@ -594,57 +589,56 @@ export default function ExerciseDetailScreen() {
     );
   }, [handleFinish]);
 
-  const watchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // ── Editable history ────────────────────────────────────────────────────────
 
-  const updateField = (index: number, field: 'weight' | 'reps', value: string) => {
-    touchedRef.current = true;
-    const newSets = setsRef.current.map((s, i) => (i === index ? { ...s, [field]: value, done: false } : s));
-    setSets(newSets);
-    if (field === 'weight') {
-      clearTimeout(watchDebounceRef.current);
-      watchDebounceRef.current = setTimeout(() => {
-        pushWatchState(newSets, restSeconds != null, exercise?.defaultRestSeconds ?? 75);
-      }, 200);
-    }
-  };
-
-  const addSet = () =>
-    setSets((prev) => [...prev, { id: nextSetId(), weight: '', reps: '', done: false }]);
-
-  const [undoData, setUndoData] = useState<{ set: SetState; index: number } | null>(null);
-  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  const deleteSet = useCallback((index: number) => {
-    const deleted = setsRef.current[index];
-    setSets((prev) => prev.filter((_, i) => i !== index));
-    clearTimeout(undoTimerRef.current);
-    setUndoData({ set: deleted, index });
-    undoTimerRef.current = setTimeout(() => setUndoData(null), 3000);
+  const handleEditSet = useCallback((log: WorkoutLog, setOrder: number) => {
+    const s = log.sets.find((x) => x.setOrder === setOrder);
+    if (!s) return;
+    setEditing({ logId: log.id, setOrder, timestamp: log.timestamp, weightKg: s.weight, reps: s.reps, rpe: s.rpe, note: s.note });
   }, []);
 
-  const undoDelete = useCallback(() => {
-    if (!undoData) return;
-    clearTimeout(undoTimerRef.current);
-    setSets((prev) => {
-      const next = [...prev];
-      next.splice(undoData.index, 0, undoData.set);
-      return next;
-    });
-    setUndoData(null);
-  }, [undoData]);
+  const handleCancelEdit = useCallback(() => setEditing(null), []);
 
-  // "Up next" shown on the rest timer: the next set, or the next exercise once
-  // every set in this exercise is done.
-  // Compute plates once; used to suppress the redundant conversion hint when the card is visible.
-  const activePlateResult = (() => {
-    const activeW = parseFloat(sets[activeIdx]?.weight ?? '') || 0;
-    if (activeW <= 0 || barbellConfig.plates.length === 0) return null;
-    const r = calculatePlates(toKg(activeW), barbellConfig.barWeight, barbellConfig.plates);
-    return r.plates.length > 0 ? r : null;
-  })();
+  const handleUpdateSet = useCallback(
+    (weightKg: number, reps: number, rpe: number | null, note: string | null) => {
+      if (!editing) return;
+      const { logId, setOrder } = editing;
+      updateSet.mutate({ logId, setOrder, reps, weight: weightKg, rpe, note });
+      // Editing an already-logged set never touches the watch — only today's
+      // append/delete flow does.
+      if (todayLog && logId === todayLog.id) {
+        setTodaySets((prev) => prev.map((s) => (s.setOrder === setOrder ? { ...s, weight: weightKg, reps } : s)));
+      }
+      setEditing(null);
+    },
+    [editing, updateSet, todayLog],
+  );
 
-  const restAllDone = sets.length > 0 && sets.every((s) => s.done);
-  const restNextIdx = sets.findIndex((s) => !s.done);
+  const handleDeleteSet = useCallback(() => {
+    if (!editing) return;
+    const { logId, setOrder } = editing;
+    deleteSet.mutate({ logId, setOrder });
+    if (todayLog && logId === todayLog.id) {
+      // Match and compact by the set's own setOrder field, not array position —
+      // mirrors the repo's compaction so the local mirror never drifts from the DB.
+      const next = todaySetsRef.current
+        .filter((s) => s.setOrder !== setOrder)
+        .map((s) => (s.setOrder > setOrder ? { ...s, setOrder: s.setOrder - 1 } : s));
+      setTodaySets(next);
+      if (next.length === 0) {
+        // The repo drops the now-empty WorkoutLogs row — if useAutoSaveSet
+        // still had this log id cached, the next "+" would silently fail its
+        // FOREIGN KEY insert (swallowed by completeSet's .catch).
+        resetLogCache(exerciseId, dayTag);
+      }
+      // Deleting one of today's sets shrinks the set count — the watch must
+      // know immediately so it doesn't log into a slot that no longer exists.
+      pushWatchState(next, restSeconds != null, exercise?.defaultRestSeconds ?? 75);
+    }
+    setEditing(null);
+  }, [editing, deleteSet, todayLog, pushWatchState, restSeconds, exercise, resetLogCache, exerciseId, dayTag]);
+
+  const restAllDone = todaySets.length >= target;
   const restUpTitle = restAllDone
     ? nextExercise?.name ?? 'Workout Complete'
     : exercise?.name ?? 'Next Set';
@@ -652,10 +646,8 @@ export default function ExerciseDetailScreen() {
     ? nextExercise
       ? 'Next exercise'
       : 'Great work — day done!'
-    : `Set ${restNextIdx + 1} of ${sets.length}` +
-      (suggestedWeight > 0
-        ? ` • ${Math.round(fromKg(suggestedWeight) * 10) / 10} ${unit} × ${suggestedReps}`
-        : '');
+    : `Set ${todaySets.length + 1} of ${Math.max(target, todaySets.length + 1)}` +
+      (prefillWeightKg > 0 ? ` • ${Math.round(fromKg(prefillWeightKg) * 10) / 10} ${unit} × ${prefillReps}` : '');
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -686,144 +678,36 @@ export default function ExerciseDetailScreen() {
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Exercise header */}
         <View style={styles.exHeader}>
-          <View style={{ flex: 1 }}>
-            <AppText variant="headlineLg" selectable style={{ fontSize: 28, lineHeight: 32 }}>
-              {exercise?.name ?? 'Exercise'}
-            </AppText>
-            <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginTop: 2 }}>
-              {exercise?.isCompound ? 'Compound' : 'Isolation'} • Strength
-            </AppText>
-          </View>
-          <TouchableOpacity
-            style={styles.historyBtn}
-            onPress={() =>
-              router.push({
-                pathname: '/(tabs)/history',
-                params: { exerciseId: String(exerciseId) },
-              })
-            }
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="time-outline" size={18} color={Colors.textSecondary} />
-            <AppText variant="labelMono" upper color={Colors.textSecondary}>History</AppText>
-          </TouchableOpacity>
+          <AppText variant="headlineLg" selectable style={{ fontSize: 28, lineHeight: 32 }}>
+            {exercise?.name ?? 'Exercise'}
+          </AppText>
+          <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginTop: 2 }}>
+            {[metaLabel, repRangeLabel].filter(Boolean).join(' • ')}
+          </AppText>
         </View>
 
-        {/* Set table */}
-        <View style={styles.table}>
-          <View style={styles.tableHead}>
-            <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colSet}>Set</AppText>
-            <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colWeight} center>Weight ({unit})</AppText>
-            <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colReps} center>Reps</AppText>
-            <AppText variant="labelMono" upper color={Colors.textSecondary} style={styles.colDone}>Done</AppText>
+        {catalogExercise && (
+          <View style={styles.carouselWrap}>
+            <ImageCarousel images={catalogExercise.images} instructions={catalogExercise.instructions} />
           </View>
-
-          {sets.map((s, i) => {
-            const active = i === activeIdx;
-            return (
-              <Swipeable
-                key={s.id}
-                enabled={!s.done && restSeconds == null}
-                friction={2}
-                rightThreshold={40}
-                renderRightActions={() => (
-                  <TouchableOpacity
-                    style={styles.deleteAction}
-                    onPress={() => deleteSet(i)}
-                    activeOpacity={0.8}
-                  >
-                    <Ionicons name="trash-outline" size={20} color={Colors.white} />
-                  </TouchableOpacity>
-                )}
-              >
-                <View
-                  style={[
-                    styles.row,
-                    active && { borderColor: accent },
-                    s.done && styles.rowDone,
-                  ]}
-                >
-                  <AppText variant="dataInput" color={Colors.textSecondary} style={styles.colSet}>{i + 1}</AppText>
-                  <View style={styles.colWeight}>
-                    <StepperInput
-                      value={s.weight}
-                      onChangeText={(v) => updateField(i, 'weight', v)}
-                      step={weightStep}
-                      decimal
-                      editable={!s.done}
-                      color={accent}
-                    />
-                  </View>
-                  <View style={styles.colReps}>
-                    <StepperInput
-                      value={s.reps}
-                      onChangeText={(v) => updateField(i, 'reps', v)}
-                      step={1}
-                      editable={!s.done}
-                      color={accent}
-                    />
-                  </View>
-                  <View style={styles.colDone}>
-                    <TouchableOpacity
-                      style={[styles.checkbox, s.done && { borderColor: accent }]}
-                      onPress={() => toggleDone(i)}
-                      activeOpacity={0.7}
-                    >
-                      {s.done && <Ionicons name="checkmark" size={22} color={accent} />}
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </Swipeable>
-            );
-          })}
-
-          <TouchableOpacity style={styles.addSet} onPress={addSet} activeOpacity={0.7}>
-            <Ionicons name="add" size={18} color={Colors.textSecondary} />
-            <AppText variant="labelMono" upper color={Colors.textSecondary}>Add Set</AppText>
-          </TouchableOpacity>
-        </View>
-
-        {/* Conversion hint — hidden when plate card is visible (card footer already shows it) */}
-        {!activePlateResult && activeIdx >= 0 &&
-          conversionHint(parseFloat(sets[activeIdx]?.weight ?? '') || 0) ? (
-          <AppText variant="labelMono" color={Colors.textMuted} style={styles.convHintBelowTable}>
-            {conversionHint(parseFloat(sets[activeIdx]?.weight ?? '') || 0)}
-          </AppText>
-        ) : null}
-
-        {/* Plate calculator */}
-        {activePlateResult && (
-          <PlateChips
-            plates={activePlateResult.plates}
-            barWeight={Math.round(fromKg(barbellConfig.barWeight) * 10) / 10}
-            totalWeight={fromKg(activePlateResult.achievable)}
-            exact={activePlateResult.exact}
-            unit={unit}
-          />
         )}
 
-        {/* Progress chart */}
-        {history.length >= 2 && (
-          <Card style={styles.section}>
-            <AppText variant="headlineMd">Progress Chart</AppText>
-            <AppText variant="bodyMd" color={Colors.textSecondary} style={{ marginBottom: Spacing.sm }}>
-              Best set over time
-            </AppText>
-            <ProgressChart logs={history} color={accent} />
-          </Card>
-        )}
+        <ChartTabs logs={history} accent={accent} />
 
-        {/* Exercise notes */}
-        <Card style={styles.section}>
-          <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginBottom: Spacing.sm }}>
-            Exercise Notes
-          </AppText>
-          <AppText variant="bodyMd">
-            {exercise?.isCompound
-              ? 'Brace your core and control the eccentric. Drive through the full range with explosive intent on the concentric.'
-              : 'Slow, controlled reps. Focus on the target muscle and a strong squeeze at peak contraction.'}
-          </AppText>
-        </Card>
+        <SetInputCard
+          accent={accent}
+          loggedCount={loggedCount}
+          target={target}
+          prefillWeightKg={prefillWeightKg}
+          prefillReps={prefillReps}
+          editing={editing}
+          onLog={completeSet}
+          onUpdate={handleUpdateSet}
+          onDelete={handleDeleteSet}
+          onCancelEdit={handleCancelEdit}
+        />
+
+        <SessionHistoryList logs={history} accent={accent} onEditSet={handleEditSet} />
       </ScrollView>
       </View>
 
@@ -853,26 +737,9 @@ export default function ExerciseDetailScreen() {
           onNext={handleCelebrateNext}
         />
       )}
-
-      {/* Undo toast */}
-      {undoData && (
-        <View style={styles.undoToast}>
-          <AppText variant="labelMono" color={Colors.white}>
-            Set {undoData.index + 1} removed
-          </AppText>
-          <TouchableOpacity onPress={undoDelete} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <AppText variant="labelMono" color={accent} style={{ fontFamily: Fonts.sansBold }}>
-              UNDO
-            </AppText>
-          </TouchableOpacity>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
-
-const COL_SET = 40;
-const COL_DONE = 48;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
@@ -902,8 +769,6 @@ const styles = StyleSheet.create({
   restCountWrap: { alignItems: 'center' },
   restCountText: { fontSize: 74, lineHeight: 78 },
   restUpNext: { alignItems: 'center' },
-  restUpNextMeta: { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.xs },
-  restDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: Colors.textMuted, marginHorizontal: 8 },
   restFooter: { paddingHorizontal: MARGIN, gap: Spacing.md },
   restAdjustRow: { flexDirection: 'row', gap: Spacing.md },
   restAdjustBtn: {
@@ -940,98 +805,11 @@ const styles = StyleSheet.create({
   },
   scroll: { paddingHorizontal: MARGIN, paddingTop: Spacing.lg, paddingBottom: 64 },
 
-  timerCard: {
-    backgroundColor: Colors.surfaceSunken,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: Spacing.lg,
-    alignItems: 'center',
-  },
-  timerValue: { marginVertical: Spacing.xs },
-
-  exHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    marginTop: Spacing.xl,
+  exHeader: { marginTop: Spacing.xl, marginBottom: Spacing.md },
+  carouselWrap: {
+    marginHorizontal: -MARGIN,
     marginBottom: Spacing.md,
-    gap: Spacing.sm,
   },
-  historyBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingBottom: 2 },
-
-  table: { gap: Spacing.sm },
-  tableHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.sm,
-    gap: Spacing.md,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.md,
-    padding: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.sm,
-    backgroundColor: Colors.surface,
-  },
-  rowDone: { backgroundColor: '#f7fff2', opacity: 0.85 },
-  colSet: { width: COL_SET, textAlign: 'center' },
-  colInput: { flex: 1 },
-  colWeight: { flex: 1.4, paddingHorizontal: 3, alignItems: 'center' }, // wider — fits decimals like 102.5
-  convHintBelowTable: { fontSize: 10, textAlign: 'center', marginTop: 4 },
-  colReps: { flex: 1, paddingHorizontal: 3 },
-  colDone: { width: COL_DONE, alignItems: 'flex-end' },
-  checkbox: {
-    width: 44,
-    height: 44,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderRadius: Radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addSet: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.sm,
-    paddingVertical: 14,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.border,
-    borderRadius: Radius.sm,
-    marginTop: Spacing.xs,
-  },
-  deleteAction: {
-    backgroundColor: Colors.danger,
-    justifyContent: 'center',
-    alignItems: 'center',
-    width: 72,
-    borderRadius: Radius.sm,
-    marginLeft: Spacing.sm,
-  },
-  undoToast: {
-    position: 'absolute',
-    bottom: 24,
-    left: MARGIN,
-    right: MARGIN,
-    backgroundColor: Colors.surfaceAlt,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 2,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  section: { marginTop: Spacing.xl },
 
   celebrateOverlay: {
     ...StyleSheet.absoluteFillObject,

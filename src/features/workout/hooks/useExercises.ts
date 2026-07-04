@@ -14,12 +14,12 @@ export function useExercises() {
   });
 }
 
-export function useExercisesByDay(dayTag: string) {
+export function useExerciseByCatalogId(catalogId: string | undefined) {
   const repo = useRepository();
   return useQuery({
-    queryKey: ['exercises', 'day', dayTag],
-    queryFn: () => repo.getExercisesByDay(dayTag),
-    enabled: !!dayTag,
+    queryKey: ['exercises', 'catalog', catalogId],
+    queryFn: () => repo.getExerciseByCatalogId(catalogId!),
+    enabled: !!catalogId,
   });
 }
 
@@ -53,6 +53,7 @@ export function useClearHistory() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['exercises'] });
       qc.invalidateQueries({ queryKey: ['history'] });
+      qc.invalidateQueries({ queryKey: ['stats'] });
     },
   });
 }
@@ -66,6 +67,8 @@ export function useClearAllData() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['exercises'] });
       qc.invalidateQueries({ queryKey: ['history'] });
+      qc.invalidateQueries({ queryKey: ['stats'] });
+      qc.invalidateQueries({ queryKey: ['bodyweight'] });
     },
   });
 }

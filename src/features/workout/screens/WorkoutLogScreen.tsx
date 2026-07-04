@@ -4,10 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, Fonts } from '@/core/theme';
-import { WEEKLY_PLAN } from '@/core/config/workoutPlan';
+import { dayColorForTag } from '../utils/dayColor';
 import { useAllDays } from '../hooks/useExercises';
 import { useWeeklyProgress } from '../hooks/useWorkoutLogs';
 import { dayProgress, weeklyKey, DEFAULT_TARGET_SETS, type SetProgress } from '../utils/progress';
+import { formatRepRange } from '../utils/repRange';
 import { weekStartOf } from '@/core/utils/date';
 import { AppText } from '@/core/ui';
 import type { Exercise } from '@/core/database/types';
@@ -16,17 +17,23 @@ const MARGIN = 20; // margin-mobile
 
 // ── Plan lookups ─────────────────────────────────────────────────────────────
 
-function planFor(dayTag: string) {
-  return Object.values(WEEKLY_PLAN).find((p) => p?.name === dayTag) ?? null;
-}
-
-function dayColor(dayTag: string): string {
-  return planFor(dayTag)?.color ?? Colors.primary;
-}
-
-function musclesFor(dayTag: string): string {
-  const p = planFor(dayTag);
-  return p ? p.muscles.join(' / ') : 'Custom';
+function musclesForExercises(exercises: Exercise[]): string {
+  const withCatalog = exercises.filter((ex) => ex.catalogId);
+  if (withCatalog.length === 0) return 'Custom';
+  // Deferred require: a top-level import here would pull in the ~0.8MB
+  // catalog JSON on every Log tab render, even for a plan with no
+  // catalog-linked exercises (or no plan at all yet). Only load it once a
+  // day actually has one to label.
+  const { getById } = require('@/features/library/services/ExerciseCatalog') as typeof import('@/features/library/services/ExerciseCatalog');
+  const { groupOf } = require('@/features/library/utils/muscleGroups') as typeof import('@/features/library/utils/muscleGroups');
+  const groups = new Set<string>();
+  for (const ex of withCatalog) {
+    const cat = getById(ex.catalogId!);
+    if (!cat) continue;
+    const group = groupOf(cat.primaryMuscles);
+    if (group) groups.add(group);
+  }
+  return groups.size > 0 ? Array.from(groups).join(' / ') : 'Custom';
 }
 
 function estMinutes(exerciseCount: number): number {
@@ -50,6 +57,7 @@ function ExerciseRow({
 }) {
   const pct = target > 0 ? done / target : 0;
   const complete = target > 0 && done >= target;
+  const range = formatRepRange(exercise.repMin, exercise.repMax);
   return (
     <TouchableOpacity style={styles.exRow} onPress={onPress} activeOpacity={0.6}>
       <View style={[styles.exDot, { backgroundColor: color }]} />
@@ -57,7 +65,7 @@ function ExerciseRow({
         <AppText variant="bodyLg">{exercise.name}</AppText>
         <View style={styles.exMetaRow}>
           <AppText variant="labelMono" upper color={Colors.textMuted}>
-            {exercise.isCompound ? 'Compound' : 'Isolation'}
+            {exercise.isCompound ? 'Compound' : 'Isolation'}{range ? ` · ${range}` : ''}
           </AppText>
           <AppText variant="labelMono" upper color={complete ? color : Colors.textMuted}>
             {complete ? 'Done' : `${done}/${target} Sets`}
@@ -93,7 +101,7 @@ function DayCard({
   loggedMap: Map<string, number>;
   onOpenExercise: (ex: Exercise) => void;
 }) {
-  const color = dayColor(dayTag);
+  const color = dayColorForTag(dayTag);
   const exCount = exercises.length;
   const { done, total, pct, complete } = progress;
 
@@ -103,7 +111,7 @@ function DayCard({
 
       <TouchableOpacity style={styles.cardHead} onPress={onToggle} activeOpacity={0.7}>
         <View style={{ flex: 1 }}>
-          <AppText variant="labelMono" upper color={color}>{musclesFor(dayTag)}</AppText>
+          <AppText variant="labelMono" upper color={color}>{musclesForExercises(exercises)}</AppText>
           <View style={styles.nameRow}>
             <AppText variant="headlineMd">{dayTag}</AppText>
           </View>
@@ -237,7 +245,7 @@ export default function WorkoutLogScreen() {
           <Ionicons name="sparkles-outline" size={48} color={Colors.textMuted} />
           <AppText variant="headlineMd" center>No workout plan yet</AppText>
           <AppText variant="bodyMd" color={Colors.textSecondary} center>
-            Go to the AI Import tab to generate your weekly split.
+            Go to the Plans tab to build or activate a split.
           </AppText>
         </View>
       ) : (
@@ -259,7 +267,7 @@ export default function WorkoutLogScreen() {
               progress={dayProgress(exercises, loggedMap, dayTag)}
               lastWeekProgress={dayProgress(exercises, lastWeekMap, dayTag)}
               loggedMap={loggedMap}
-              onOpenExercise={(ex) => openExercise(ex, dayColor(dayTag), dayTag)}
+              onOpenExercise={(ex) => openExercise(ex, dayColorForTag(dayTag), dayTag)}
             />
           ))}
         </ScrollView>

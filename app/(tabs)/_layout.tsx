@@ -25,6 +25,32 @@ export default function TabLayout() {
       }}
     >
       <Tabs.Screen
+        name="exercises"
+        options={{
+          title: 'Exercises',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={(focused ? 'body' : 'body-outline') as IoniconsName}
+              size={TAB_ICON_SIZE}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="plans"
+        options={{
+          title: 'Plans',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={(focused ? 'calendar' : 'calendar-outline') as IoniconsName}
+              size={TAB_ICON_SIZE}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="index"
         options={{
           title: 'Log',
@@ -38,25 +64,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="history"
+        name="profile"
         options={{
-          title: 'History',
+          title: 'Profile',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={(focused ? 'stats-chart' : 'stats-chart-outline') as IoniconsName}
-              size={TAB_ICON_SIZE}
-              color={color}
-            />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="import"
-        options={{
-          title: 'AI Import',
-          tabBarIcon: ({ color, focused }) => (
-            <Ionicons
-              name={(focused ? 'sparkles' : 'sparkles-outline') as IoniconsName}
+              name={(focused ? 'person' : 'person-outline') as IoniconsName}
               size={TAB_ICON_SIZE}
               color={color}
             />
