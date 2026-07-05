@@ -394,25 +394,23 @@ export default function ExerciseDetailScreen() {
   todaySetsRef.current = todaySets;
 
   const loggedCount = todaySets.length;
-  const suggestedWeight = priorSession ? Math.max(...priorSession.sets.map((s) => s.weight), 0) : 0;
-  const suggestedReps = priorSession?.sets[0]?.reps ?? 10;
-  // Takes an explicit loggedN (rather than closing over `loggedCount`) so
-  // pushWatchState can compute the prefill for the set AFTER whatever was just
-  // logged, using the fresh count passed to it — not a stale pre-increment
-  // value from this render.
-  const prefillFor = useCallback(
-    (loggedN: number) => {
-      const atNext = priorSession?.sets.find((s) => s.setOrder === loggedN + 1) ?? priorSession?.sets[loggedN];
-      return {
-        weightKg: atNext && atNext.weight > 0 ? atNext.weight : suggestedWeight,
-        // Keep the suggestion inside the plan's rep range so a stale history
-        // value doesn't propose reps the plan no longer prescribes.
-        reps: clampReps(atNext && atNext.reps > 0 ? atNext.reps : suggestedReps, planEntry?.repMin, planEntry?.repMax),
-      };
-    },
-    [priorSession, suggestedWeight, suggestedReps, planEntry],
+  // Prefill every set from the prior session's biggest set (heaviest weight,
+  // ties broken by reps) — mirroring set-by-set would start the day at
+  // whatever warm-up weight happened to be logged first.
+  const priorSets = priorSession?.sets ?? [];
+  const bestPriorSet = priorSets.length
+    ? priorSets.reduce((best, s) =>
+        s.weight > best.weight || (s.weight === best.weight && s.reps > best.reps) ? s : best,
+      )
+    : undefined;
+  const prefillWeightKg = bestPriorSet?.weight ?? 0;
+  // Keep the suggestion inside the plan's rep range so a stale history
+  // value doesn't propose reps the plan no longer prescribes.
+  const prefillReps = clampReps(
+    bestPriorSet && bestPriorSet.reps > 0 ? bestPriorSet.reps : 10,
+    planEntry?.repMin,
+    planEntry?.repMax,
   );
-  const { weightKg: prefillWeightKg, reps: prefillReps } = prefillFor(loggedCount);
 
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
   const [restKey, setRestKey] = useState(0);
@@ -431,15 +429,13 @@ export default function ExerciseDetailScreen() {
   const pushWatchState = useCallback(
     (updatedSets: LoggedSet[], isResting: boolean, restDuration: number) => {
       const loggedN = updatedSets.length;
-      const { weightKg: nextWeightKg, reps: nextReps } = prefillFor(loggedN);
-      const weightForPlates = nextWeightKg > 0 ? nextWeightKg : suggestedWeight;
-      const { plates } = calculatePlates(weightForPlates, barbellConfig.barWeight, barbellConfig.plates);
+      const { plates } = calculatePlates(prefillWeightKg, barbellConfig.barWeight, barbellConfig.plates);
       sendWorkoutState({
         exerciseName: exercise?.name ?? '',
         setNumber: loggedN + 1,
         totalSets: Math.max(target, loggedN),
-        suggestedReps: nextReps || suggestedReps,
-        suggestedWeight: fromKg(weightForPlates),
+        suggestedReps: prefillReps,
+        suggestedWeight: fromKg(prefillWeightKg),
         restDuration,
         isResting,
         isWorkoutComplete: loggedN >= target && !isResting,
@@ -451,7 +447,7 @@ export default function ExerciseDetailScreen() {
         accentColor: accent,
       });
     },
-    [exercise, target, prefillFor, suggestedWeight, suggestedReps, sendWorkoutState, fromKg, unit, weightStep, barbellConfig, showConversion, showPlateBreakdown, accent],
+    [exercise, target, prefillWeightKg, prefillReps, sendWorkoutState, fromKg, unit, weightStep, barbellConfig, showConversion, showPlateBreakdown, accent],
   );
 
   // Start session tracking on the very first exercise (no startTime in params).
