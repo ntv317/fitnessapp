@@ -1,4 +1,10 @@
-import { normalizeName, normalizeGroup } from '@/features/import/services/catalogMatch';
+import {
+  normalizeName,
+  normalizeGroup,
+  findImportMatch,
+  findClosestCatalogMatch,
+  resolveImport,
+} from '@/features/import/services/catalogMatch';
 
 describe('catalogMatch utilities', () => {
   describe('normalizeName', () => {
@@ -77,6 +83,77 @@ describe('catalogMatch utilities', () => {
 
     it('should return null for whitespace-only string', () => {
       expect(normalizeGroup('   ')).toBeNull();
+    });
+  });
+
+  describe('findImportMatch', () => {
+    it('matches an exact catalog name', () => {
+      expect(findImportMatch('Incline Dumbbell Press')?.name).toBe('Incline Dumbbell Press');
+    });
+
+    it('expands equipment abbreviations (DB → Dumbbell)', () => {
+      expect(findImportMatch('Incline DB Press')?.name).toBe('Incline Dumbbell Press');
+    });
+
+    it('expands movement abbreviations (RDL → Romanian Deadlift)', () => {
+      expect(findImportMatch('RDL')?.name).toBe('Romanian Deadlift');
+    });
+
+    it('links a partial name to a covering catalog variant', () => {
+      // No plain "Barbell Bench Press" exists — it should still link to a
+      // barbell bench press variant rather than miss.
+      const m = findImportMatch('Barbell Bench Press');
+      expect(m).not.toBeNull();
+      expect(normalizeName(m!.name)).toContain('barbell bench press');
+    });
+
+    it('picks the most specific (fewest-extra-token) covering variant', () => {
+      // "Romanian Deadlift" must win over "Romanian Deadlift from Deficit".
+      expect(findImportMatch('Romanian Deadlift')?.name).toBe('Romanian Deadlift');
+    });
+
+    it('refuses to guess from a single bare token', () => {
+      expect(findImportMatch('Curl')).toBeNull();
+      expect(findImportMatch('Press')).toBeNull();
+    });
+
+    it('returns null when no catalog entry covers the query', () => {
+      expect(findImportMatch('Zercher Zottman Widowmaker')).toBeNull();
+    });
+  });
+
+  describe('findClosestCatalogMatch (display fallback)', () => {
+    it('falls back to a phrase-substring variant when strict misses', () => {
+      // "Bench Press" alone: loose display match may surface any bench-press
+      // variant so the logging screen can show an image.
+      const m = findClosestCatalogMatch('Bench Press');
+      expect(m).not.toBeNull();
+      expect(normalizeName(m!.name)).toContain('bench press');
+    });
+  });
+
+  describe('resolveImport (catalog linking)', () => {
+    it('links an abbreviated exercise to the catalog and canonicalises its name', () => {
+      const [day] = resolveImport([
+        { day: 'PUSH', exercises: [{ name: 'Incline DB Press', isCompound: false, sets: 3 }] },
+      ]);
+      expect(day.exercises[0].name).toBe('Incline Dumbbell Press');
+      expect(day.exercises[0].catalogId).not.toBeNull();
+      expect(day.exercises[0].muscleGroup).not.toBeNull();
+    });
+
+    it('keeps an unmatched exercise with the AI-provided name and no catalog link', () => {
+      const [day] = resolveImport([
+        {
+          day: 'PUSH',
+          exercises: [
+            { name: 'Zercher Zottman Widowmaker', isCompound: true, sets: 3, muscleGroup: 'Chest' },
+          ],
+        },
+      ]);
+      expect(day.exercises[0].name).toBe('Zercher Zottman Widowmaker');
+      expect(day.exercises[0].catalogId).toBeNull();
+      expect(day.exercises[0].muscleGroup).toBe('Chest');
     });
   });
 });

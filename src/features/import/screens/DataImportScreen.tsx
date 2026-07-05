@@ -33,12 +33,16 @@ Format:
 
 Rules:
 - Output an array of workout days (e.g. 3–5 days depending on my goal)
-- Use common exercise names (e.g. "Barbell Bench Press - Medium Grip", "Pullups", "Barbell Curl")
-- isCompound: true for multi-joint moves (bench, squat, row, press, deadlift, pull-up); false for single-joint (curl, lateral raise, pushdown, fly)
 - sets: the number of working sets for the exercise (e.g. 3)
 - repMin/repMax: the target rep range for each set (e.g. 8 and 12)
 - muscleGroup: exactly one of Abs, Back, Biceps, Calf, Chest, Forearms, Legs, Shoulders, Triceps
+- isCompound: true for multi-joint moves (bench, squat, row, press, deadlift, pull-up); false for single-joint (curl, lateral raise, pushdown, fly)
 - Day names should be descriptive: PUSH, PULL, LEGS, SHOULDERS, BACK + ARMS, FULL BODY, etc.
+
+Exercise names — this matters for matching to the built-in exercise library:
+- Write the FULL standard name and lead with the equipment: "Barbell Bench Press", "Dumbbell Incline Press", "Cable Rope Triceps Pushdown", "Barbell Romanian Deadlift", "Machine Leg Press".
+- Do NOT abbreviate. Write "Dumbbell" not "DB", "Barbell" not "BB", "Overhead Press" not "OHP", "Romanian Deadlift" not "RDL".
+- Prefer well-known names from standard exercise databases over gym slang.
 
 My goal: [REPLACE — e.g. "build muscle, 4 days/week, intermediate"]`;
 
