@@ -1,6 +1,15 @@
-# Fitness App
+# LIFTREPS — Gym Workout Tracker & Lifting Log for iOS
 
-React Native / Expo fitness tracker for iOS.
+**LIFTREPS** is a fast, offline-first workout tracker for iPhone and Apple Watch:
+log sets and reps in two taps, follow your weekly split, run rest timers on the
+lock screen (Live Activity) and your wrist, and track strength progress per
+exercise. No account, no ads — all data stays on-device.
+
+🌐 [Website](https://ntv317.github.io/fitnessapp/) ·
+🔒 [Privacy policy](https://ntv317.github.io/fitnessapp/privacy-policy.html) ·
+📲 App Store — coming soon
+
+Built with React Native / Expo, TypeScript, SQLite, and a native watchOS companion.
 
 ## Architecture
 
