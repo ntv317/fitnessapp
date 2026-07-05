@@ -8,9 +8,9 @@
     "userInterfaceStyle": "automatic",
     "scheme": "trakfitness",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0f172a"
+      "backgroundColor": "#fcf9f8"
     },
     "ios": {
       "supportsTablet": false,
