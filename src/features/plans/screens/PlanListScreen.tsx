@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius } from '@/core/theme';
 import { AppText, Button } from '@/core/ui';
 import { usePlans, useCreatePlan, useSetActivePlan } from '@/features/workout/hooks/usePlans';
+import { usePremium } from '@/core/context/PremiumContext';
 import type { Plan } from '@/core/database/types';
 
 const MARGIN = 20;
@@ -15,8 +16,13 @@ export default function PlanListScreen() {
   const { data: plans = [] } = usePlans();
   const createPlan = useCreatePlan();
   const setActivePlan = useSetActivePlan();
+  const { isPro } = usePremium();
 
   const handleCreate = useCallback(() => {
+    if (!isPro && plans.length >= 1) {
+      router.push('/paywall' as never);
+      return;
+    }
     Alert.prompt(
       'New Plan',
       'Name your plan (e.g. "Push Pull Legs")',
@@ -30,7 +36,7 @@ export default function PlanListScreen() {
         }
       },
     );
-  }, [createPlan, router]);
+  }, [createPlan, router, isPro, plans.length]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

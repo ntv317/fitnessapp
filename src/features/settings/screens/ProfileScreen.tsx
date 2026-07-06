@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/core/ui/AppText';
 import { Colors, Spacing, Radius } from '@/core/theme';
+import { usePremium } from '@/core/context/PremiumContext';
 
 const ROWS: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; href: string }[] = [
   { label: 'Settings', icon: 'settings-outline', href: '/settings' },
@@ -15,6 +16,10 @@ const ROWS: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { isPro } = usePremium();
+  const rows = isPro
+    ? ROWS
+    : [{ label: 'LIFTREPS Pro', icon: 'star-outline', href: '/paywall' } as const, ...ROWS];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -24,7 +29,7 @@ export default function ProfileScreen() {
 
       <View style={styles.content}>
         <View style={styles.group}>
-          {ROWS.map((row, i) => (
+          {rows.map((row, i) => (
             <View key={row.href}>
               <TouchableOpacity style={styles.row} onPress={() => router.push(row.href as never)}>
                 <View style={styles.rowLeft}>
@@ -33,7 +38,7 @@ export default function ProfileScreen() {
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
               </TouchableOpacity>
-              {i < ROWS.length - 1 && <View style={styles.divider} />}
+              {i < rows.length - 1 && <View style={styles.divider} />}
             </View>
           ))}
         </View>

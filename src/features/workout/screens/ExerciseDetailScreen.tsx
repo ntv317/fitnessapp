@@ -7,7 +7,8 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
-import { useExercises, useAllDays } from '../hooks/useExercises';
+import { usePremium } from '@/core/context/PremiumContext';
+import { useExercises, useAllDays, useUpsertExercise } from '../hooks/useExercises';
 import {
   useAutoSaveSet,
   useWorkoutLogs,
@@ -24,6 +25,7 @@ import { useWatchSync, type WatchSetLogged } from '../hooks/useWatchSync';
 import { useBarbellConfig } from '../hooks/useBarbellConfig';
 import { calculatePlates } from '@/core/utils/plateCalculator';
 import { detectPR } from '../utils/pr';
+import { suggestProgression } from '../utils/progression';
 import { startSession, addExerciseResult, getSession } from '../utils/workoutSession';
 import { formatWeight } from '@/core/utils/format';
 import * as Notifications from 'expo-notifications';
@@ -70,6 +72,7 @@ function useRestNotification() {
   return { schedule, cancel };
 }
 const MARGIN = 20; // margin-mobile
+const REST_PRESETS = [60, 75, 90, 120, 150, 180];
 
 interface CelebrateData {
   exerciseName: string;
@@ -288,6 +291,7 @@ export default function ExerciseDetailScreen() {
   const { saveSet, resetLogCache } = useAutoSaveSet();
   const updateSet = useUpdateSet();
   const deleteSet = useDeleteSet();
+  const upsertExercise = useUpsertExercise();
   const qc = useQueryClient();
   const { data: exercises = [] } = useExercises();
   const { data: history = [] } = useWorkoutLogs(exerciseId);
@@ -396,6 +400,14 @@ export default function ExerciseDetailScreen() {
   const loggedCount = todaySets.length;
   const suggestedWeight = priorSession ? Math.max(...priorSession.sets.map((s) => s.weight), 0) : 0;
   const suggestedReps = priorSession?.sets[0]?.reps ?? 10;
+  const { isPro } = usePremium();
+  const progression = useMemo(
+    () =>
+      isPro && priorSession
+        ? suggestProgression(priorSession.sets, planEntry?.repMin, planEntry?.repMax, 2.5)
+        : null,
+    [isPro, priorSession, planEntry],
+  );
   // Takes an explicit loggedN (rather than closing over `loggedCount`) so
   // pushWatchState can compute the prefill for the set AFTER whatever was just
   // logged, using the fresh count passed to it — not a stale pre-increment
@@ -595,13 +607,39 @@ export default function ExerciseDetailScreen() {
     }
   }, [priorHistory, exercise, accent, params.day]);
 
+  const handleRestTimerMenu = useCallback(() => {
+    if (!isPro) {
+      router.push('/paywall' as never);
+      return;
+    }
+    if (!exercise) return;
+    const current = exercise.defaultRestSeconds;
+    const labels = REST_PRESETS.map((s) => `${s}s${s === current ? ' ✓' : ''}`);
+    ActionSheetIOS.showActionSheetWithOptions(
+      { title: 'Rest Timer', options: ['Cancel', ...labels], cancelButtonIndex: 0 },
+      (index) => {
+        if (index === 0) return;
+        upsertExercise.mutate({
+          name: exercise.name,
+          defaultRestSeconds: REST_PRESETS[index - 1],
+          isCompound: exercise.isCompound,
+          isCustom: exercise.isCustom,
+        });
+      },
+    );
+  }, [isPro, exercise, upsertExercise]);
+
   // ••• menu — two-tap protection against accidental mid-lift exits
   const handleMoreMenu = useCallback(() => {
     ActionSheetIOS.showActionSheetWithOptions(
-      { options: ['Cancel', 'Finish Workout'], cancelButtonIndex: 0 },
-      (index) => { if (index === 1) handleFinish(); },
+      { options: ['Cancel', 'Finish Workout', 'Rest Timer'], cancelButtonIndex: 0 },
+      (index) => {
+        if (index === 1) handleFinish();
+        // Defer so the sheet finishes dismissing before the next one presents.
+        else if (index === 2) setTimeout(handleRestTimerMenu, 0);
+      },
     );
-  }, [handleFinish]);
+  }, [handleFinish, handleRestTimerMenu]);
 
   // ── Editable history ────────────────────────────────────────────────────────
 
@@ -698,6 +736,19 @@ export default function ExerciseDetailScreen() {
           <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginTop: 2 }}>
             {[metaLabel, repRangeLabel].filter(Boolean).join(' • ')}
           </AppText>
+          {progression && loggedCount === 0 && (
+            <View style={styles.suggestionChip}>
+              <Ionicons
+                name={progression.increased ? 'trending-up' : 'repeat'}
+                size={14}
+                color={accent}
+              />
+              <AppText variant="labelMono" color={Colors.textSecondary}>
+                Next: {formatWeight(fromKg(progression.weightKg))} {unit} × {progression.reps}
+                {progression.increased ? ' — you earned an increase' : ''}
+              </AppText>
+            </View>
+          )}
         </View>
 
         {catalogExercise && (
@@ -820,6 +871,7 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: MARGIN, paddingTop: Spacing.lg, paddingBottom: 64 },
 
   exHeader: { marginTop: Spacing.xl, marginBottom: Spacing.md },
+  suggestionChip: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm },
   carouselWrap: {
     marginHorizontal: -MARGIN,
     marginBottom: Spacing.md,

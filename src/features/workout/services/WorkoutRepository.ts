@@ -323,6 +323,22 @@ export class WorkoutRepository implements IWorkoutRepository {
     };
   }
 
+  async getWeeklyMuscleVolume(weekStart: number): Promise<{ muscleGroup: string; volumeKg: number }[]> {
+    const weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000;
+    const rows = await this.db.getAllAsync<{ muscle_group: string; volume_kg: number }>(
+      `SELECT COALESCE(e.muscle_group, 'Other') AS muscle_group,
+              COALESCE(SUM(ws.weight * ws.reps), 0) AS volume_kg
+       FROM WorkoutLogs wl
+       JOIN WorkoutSets ws ON ws.log_id = wl.id
+       JOIN Exercises e ON e.id = wl.exercise_id
+       WHERE wl.timestamp >= ? AND wl.timestamp < ?
+       GROUP BY COALESCE(e.muscle_group, 'Other')
+       ORDER BY volume_kg DESC;`,
+      [weekStart, weekEnd],
+    );
+    return rows.map((r) => ({ muscleGroup: r.muscle_group, volumeKg: r.volume_kg }));
+  }
+
   async getTodayLogId(exerciseId: number, dayTag: string | null): Promise<number | null> {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);

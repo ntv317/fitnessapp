@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import WatchSync from '../../../../modules/watch-sync';
+import { usePremium } from '@/core/context/PremiumContext';
 
 /**
  * Apple Watch sync bridge.
@@ -51,6 +52,7 @@ interface UseWatchSyncOptions {
 
 export function useWatchSync(options: UseWatchSyncOptions = {}) {
   const { onSetLogged, onSkipRest } = options;
+  const { isPro, isLoading } = usePremium();
 
   // Keep the latest callbacks in refs so the listeners don't churn.
   const onSetLoggedRef = useRef(onSetLogged);
@@ -58,12 +60,22 @@ export function useWatchSync(options: UseWatchSyncOptions = {}) {
   const onSkipRestRef = useRef(onSkipRest);
   onSkipRestRef.current = onSkipRest;
 
+  // Blocked only once the user is definitively non-Pro; while the entitlement
+  // is resolving we still send/accept so a Pro watch never stalls or drops sets.
+  const blocked = !isPro && !isLoading;
+  const blockedRef = useRef(blocked);
+  blockedRef.current = blocked;
+
   useEffect(() => {
     if (!WatchSync) return;
+    // Listeners stay registered so identity is stable across entitlement
+    // resolution; payloads from a non-Pro watch are dropped instead.
     const setSub = WatchSync.addListener('onSetLogged', (payload: WatchSetLogged) => {
+      if (blockedRef.current) return;
       onSetLoggedRef.current?.(payload);
     });
     const skipSub = WatchSync.addListener('onSkipRest', () => {
+      if (blockedRef.current) return;
       onSkipRestRef.current?.();
     });
     return () => {
@@ -73,12 +85,14 @@ export function useWatchSync(options: UseWatchSyncOptions = {}) {
   }, []);
 
   const sendWorkoutState = useCallback((state: WatchWorkoutState) => {
+    if (blocked) return;
     WatchSync?.updateState(state as unknown as Record<string, unknown>);
-  }, []);
+  }, [blocked]);
 
   const sendMessage = useCallback((message: WatchMessage) => {
+    if (blocked) return;
     WatchSync?.sendMessage(message as Record<string, unknown>);
-  }, []);
+  }, [blocked]);
 
   return { sendWorkoutState, sendMessage };
 }

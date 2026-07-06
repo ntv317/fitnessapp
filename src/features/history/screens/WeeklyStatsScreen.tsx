@@ -6,8 +6,10 @@ import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
+import { usePremium } from '@/core/context/PremiumContext';
 import { useAllDays } from '@/features/workout/hooks/useExercises';
 import { useWeeklyProgress, useWeeklyStats } from '@/features/workout/hooks/useWorkoutLogs';
+import { useMuscleVolume } from '@/features/workout/hooks/useProAnalytics';
 import { dayProgress } from '@/features/workout/utils/progress';
 import { dayColorForTag } from '@/features/workout/utils/dayColor';
 import { weekStartOf } from '@/core/utils/date';
@@ -45,8 +47,10 @@ export default function WeeklyStatsScreen() {
   const thisWeekStart = useMemo(() => weekStartOf(Date.now()), []);
   const lastWeekStart = thisWeekStart - WEEK_MS;
 
+  const { isPro } = usePremium();
   const { data: stats } = useWeeklyStats(thisWeekStart);
   const { data: lastStats } = useWeeklyStats(lastWeekStart);
+  const { data: muscleVolume = [] } = useMuscleVolume(thisWeekStart, isPro);
   const { data: allDays = [] } = useAllDays();
   const { data: weeklyMap = new Map<string, number>() } = useWeeklyProgress(thisWeekStart);
 
@@ -137,6 +141,40 @@ export default function WeeklyStatsScreen() {
           </View>
         )}
 
+        {/* Muscle group balance (Pro) */}
+        <View style={styles.section}>
+          <AppText variant="labelMono" upper color={Colors.textMuted} style={{ marginBottom: Spacing.sm }}>
+            By Muscle Group
+          </AppText>
+          {!isPro ? (
+            <TouchableOpacity style={styles.lockRow} onPress={() => router.push('/paywall' as never)}>
+              <Ionicons name="lock-closed" size={14} color={Colors.textMuted} />
+              <AppText variant="bodyMd" color={Colors.textMuted}>
+                Muscle balance — LIFTREPS Pro
+              </AppText>
+            </TouchableOpacity>
+          ) : muscleVolume.length === 0 ? (
+            <AppText variant="bodyMd" color={Colors.textMuted}>No sets logged this week yet.</AppText>
+          ) : (
+            muscleVolume.map((m) => {
+              const maxVol = muscleVolume[0].volumeKg || 1;
+              return (
+                <View key={m.muscleGroup} style={styles.muscleRow}>
+                  <View style={styles.dayLabelRow}>
+                    <AppText variant="bodyMd">{m.muscleGroup}</AppText>
+                    <AppText variant="labelMono" color={Colors.textMuted}>
+                      {formatWeight(fromKg(m.volumeKg))} {unit}
+                    </AppText>
+                  </View>
+                  <View style={styles.track}>
+                    <View style={[styles.fill, { width: `${(m.volumeKg / maxVol) * 100}%`, backgroundColor: Colors.primary }]} />
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+
         {lastVolume > 0 && (
           <AppText variant="labelMono" upper color={Colors.textMuted} center style={{ marginTop: Spacing.xl }}>
             Last week: {formatWeight(fromKg(lastVolume))} {unit} · {lastStats?.totalSets ?? 0} sets
@@ -189,5 +227,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   dayDot: { width: 8, height: 8, borderRadius: 4 },
+  muscleRow: { paddingVertical: Spacing.sm },
+  lockRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm },
   dayLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 },
 });
