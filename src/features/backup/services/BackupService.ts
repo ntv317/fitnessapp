@@ -9,6 +9,9 @@ export const AUTO_BACKUP_KEY = '@fitness/autoBackupEnabled';
 
 const SNAPSHOT_NAME = 'fitness-snapshot.db';
 const STAGING_NAME = 'fitness-restore.db';
+// Safety net kept on disk after a restore so a mistaken "Restore" is
+// recoverable (overwritten by the next restore).
+const PRE_RESTORE_NAME = 'fitness-pre-restore.db';
 
 // Serializes restore against backup: auto-backup on backgrounding must never
 // snapshot (or reopen) the DB while a restore is mid-swap.
@@ -84,6 +87,11 @@ async function doRestore(fileName: string): Promise<void> {
     await cleanupStaging(stagingPath);
     throw new Error('This backup was made with a newer version of LIFTREPS. Update the app, then restore.');
   }
+
+  const preRestorePath = `${dbDir}/${PRE_RESTORE_NAME}`;
+  await ICloudBackup.removeLocalFile(preRestorePath);
+  const db = await getDatabase();
+  await db.execAsync(`VACUUM INTO '${preRestorePath}'`);
 
   await closeDatabase();
   await ICloudBackup.replaceDatabaseFile(stagingPath, dbPath);

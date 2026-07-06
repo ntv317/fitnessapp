@@ -26,13 +26,13 @@ struct ActiveTrackingView: View {
             .padding(.bottom, 2)
         }
         .onAppear(perform: resetToSuggested)
-        .onChange(of: session.workoutState.exerciseName) { _ in resetToSuggested() }
-        .onChange(of: session.workoutState.setNumber)    { _ in resetToSuggested() }
-        .onChange(of: session.workoutState.suggestedWeight) { _ in
+        .onChange(of: session.workoutState.exerciseName) { _, _ in resetToSuggested() }
+        .onChange(of: session.workoutState.setNumber)    { _, _ in resetToSuggested() }
+        .onChange(of: session.workoutState.suggestedWeight) { _, _ in
             weight = session.workoutState.suggestedWeight
         }
-        .onChange(of: session.workoutState.suggestedReps) { _ in
-            reps = session.workoutState.suggestedReps
+        .onChange(of: session.workoutState.suggestedReps) { _, new in
+            if new > 0 { reps = new }
         }
     }
 
@@ -54,7 +54,7 @@ struct ActiveTrackingView: View {
 
     private var weightPrev: String {
         session.workoutState.suggestedWeight > 0
-            ? "\(Int(session.workoutState.suggestedWeight)) PREV"
+            ? "\(Self.format(session.workoutState.suggestedWeight)) PREV"
             : "WEIGHT"
     }
 
@@ -155,13 +155,11 @@ struct ActiveTrackingView: View {
                 Image(systemName: isResting ? "timer" : "checkmark.circle.fill")
                     .font(.system(size: 16, weight: .semibold))
                 if isResting {
-                    (
-                        Text(restCountdown)
-                            .font(.system(size: 15, weight: .semibold).monospacedDigit())
-                        + Text(" Resting")
-                            .font(.system(size: 15, weight: .semibold))
-                    )
-                    .foregroundColor(.white)
+                    // monospacedDigit only affects digits, so one Text covers both
+                    // segments (Text + Text is deprecated on watchOS 26).
+                    Text("\(restCountdown) Resting")
+                        .font(.system(size: 15, weight: .semibold).monospacedDigit())
+                        .foregroundColor(.white)
                 } else {
                     Text("LOG SET")
                         .font(.system(size: 15, weight: .bold))
@@ -178,10 +176,12 @@ struct ActiveTrackingView: View {
 
     // MARK: - Helpers
 
-    private var weightDisplay: String {
-        weight.truncatingRemainder(dividingBy: 1) == 0
-            ? "\(Int(weight))"
-            : String(format: "%.1f", weight)
+    private var weightDisplay: String { Self.format(weight) }
+
+    private static func format(_ value: Double) -> String {
+        value.truncatingRemainder(dividingBy: 1) == 0
+            ? "\(Int(value))"
+            : String(format: "%.1f", value)
     }
 
     private var restCountdown: String {
@@ -190,8 +190,12 @@ struct ActiveTrackingView: View {
     }
 
     private func resetToSuggested() {
+        // A 0-rep suggestion (no history) must not zero the input: the phone
+        // silently drops reps == 0, so LOG SET would haptic-confirm a set that
+        // never lands.
         weight = session.workoutState.suggestedWeight
-        reps   = session.workoutState.suggestedReps
+        let suggested = session.workoutState.suggestedReps
+        reps = suggested > 0 ? suggested : 10
         if !isResting { crownFocused = true }
     }
 

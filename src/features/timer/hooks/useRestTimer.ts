@@ -26,6 +26,10 @@ Notifications.setNotificationHandler({
 
 const NOTIF_ID_KEY = '__rest_timer_notif__';
 
+// Permission is requested at the first timer start (contextual — the user just
+// did the thing notifications are for), not at app launch.
+let requestedPermission = false;
+
 export function useRestTimer() {
   const [seconds, setSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
@@ -74,6 +78,10 @@ export function useRestTimer() {
 
   const start = useCallback(
     (duration: number) => {
+      if (!requestedPermission) {
+        requestedPermission = true;
+        Notifications.requestPermissionsAsync().catch(() => {});
+      }
       clearTick();
       cancelNotif();
       setSeconds(duration);

@@ -72,7 +72,11 @@ struct SummaryView: View {
 
     private var statsSection: some View {
         VStack(spacing: 8) {
-            SummaryStatCard(label: "TOTAL VOLUME", value: volumeDisplay(session.workoutState.totalVolume), unit: "kg")
+            SummaryStatCard(
+                label: "TOTAL VOLUME",
+                value: volumeDisplay(session.workoutState.totalVolume),
+                unit: session.workoutState.unit
+            )
             SummaryStatCard(label: "TIME", value: "\(session.workoutState.elapsedMinutes)", unit: "min")
         }
     }
@@ -106,8 +110,8 @@ struct SummaryView: View {
         .background(LinearGradient(colors: [.clear, .black.opacity(0.9), .black], startPoint: .top, endPoint: .bottom))
     }
 
-    private func volumeDisplay(_ kg: Double) -> String {
-        kg >= 1000 ? String(format: "%.1fk", kg / 1000) : "\(Int(kg))"
+    private func volumeDisplay(_ volume: Double) -> String {
+        volume >= 1000 ? String(format: "%.1fk", volume / 1000) : "\(Int(volume))"
     }
 
     private func finish() {
@@ -115,6 +119,10 @@ struct SummaryView: View {
         finished = true
         WKInterfaceDevice.current().play(.success)
         session.sendFinishWorkout()
+        // Brief "Done!" beat, then back to Idle.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            session.finishWorkoutLocally()
+        }
     }
 }
 

@@ -54,7 +54,11 @@ struct RestView: View {
                     .font(.system(size: 14, weight: .bold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
-                Text("Set \(session.workoutState.setNumber) of \(session.workoutState.totalSets)")
+                // After the final set, setNumber (next open slot) exceeds
+                // totalSets — "Set 4 of 3" is nonsense, say what's true instead.
+                Text(session.workoutState.setNumber > session.workoutState.totalSets
+                     ? "All sets done"
+                     : "Set \(session.workoutState.setNumber) of \(session.workoutState.totalSets)")
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.secondary)
             }

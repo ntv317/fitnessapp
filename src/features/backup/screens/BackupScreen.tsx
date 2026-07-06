@@ -129,7 +129,7 @@ export default function BackupScreen() {
                 <View>
                   <AppText variant="bodyMd">{formatBackupDate(b.modifiedAt)}</AppText>
                   <AppText variant="labelMono" color={Colors.textMuted} style={{ marginTop: 2 }}>
-                    {formatSize(b.size)}
+                    {b.isDownloaded ? formatSize(b.size) : 'In iCloud'}
                   </AppText>
                 </View>
                 <TouchableOpacity

@@ -35,6 +35,11 @@ public class WatchSyncModule: Module {
 final class WatchSessionHandler: NSObject, WCSessionDelegate {
   var onEvent: ((String, [String: Any]) -> Void)?
 
+  // updateApplicationContext replaces the stored dict wholesale, but the
+  // entitlement flag and the workout snapshot are written by different
+  // callers — merge so neither clobbers the other's keys.
+  private var lastContext: [String: Any] = [:]
+
   var isReachable: Bool {
     WCSession.isSupported() && WCSession.default.isReachable
   }
@@ -48,8 +53,12 @@ final class WatchSessionHandler: NSObject, WCSessionDelegate {
   func updateState(_ state: [String: Any]) {
     guard WCSession.isSupported() else { return }
     let s = WCSession.default
+    if lastContext.isEmpty {
+      lastContext = s.applicationContext
+    }
+    lastContext.merge(state) { _, new in new }
     // applicationContext = latest snapshot, delivered even if the watch is asleep.
-    try? s.updateApplicationContext(state)
+    try? s.updateApplicationContext(lastContext)
     // Also push immediately if the watch app is in the foreground.
     if s.isReachable {
       s.sendMessage(state, replyHandler: nil, errorHandler: nil)

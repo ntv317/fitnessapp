@@ -165,29 +165,31 @@ export interface PageOptions {
 
 // ── AI IMPORT DTOs (Zod-validated at the ImportService boundary) ──────────────
 
+// Upper bounds guard against pathological pastes — an unbounded "name" or
+// sets value lands directly in the DB and progress denominators otherwise.
 export const AIExerciseSchema = z
   .object({
-    name: z.string().min(1),
+    name: z.string().min(1).max(80),
     isCompound: z.boolean().default(false),
     // Number of working sets — becomes the per-plan target set count.
-    sets: z.number().int().positive(),
-    repMin: z.number().int().positive().optional(),
-    repMax: z.number().int().positive().optional(),
+    sets: z.number().int().positive().max(20),
+    repMin: z.number().int().positive().max(100).optional(),
+    repMax: z.number().int().positive().max(100).optional(),
     // Legacy alias: a single "reps" value maps to repMin = repMax = reps.
-    reps: z.number().int().positive().optional(),
+    reps: z.number().int().positive().max(100).optional(),
     // Free-form here; resolved against the library's group list at import time.
-    muscleGroup: z.string().optional(),
+    muscleGroup: z.string().max(40).optional(),
   })
   .refine((e) => e.repMin == null || e.repMax == null || e.repMin <= e.repMax, {
     message: 'repMin must be <= repMax',
   });
 
 export const AIDaySchema = z.object({
-  day: z.string().min(1),
-  exercises: z.array(AIExerciseSchema).min(1),
+  day: z.string().min(1).max(40),
+  exercises: z.array(AIExerciseSchema).min(1).max(30),
 });
 
-export const AIImportSchema = z.array(AIDaySchema).min(1);
+export const AIImportSchema = z.array(AIDaySchema).min(1).max(14);
 
 export type AIExerciseDTO = z.infer<typeof AIExerciseSchema>;
 export type AIDayDTO = z.infer<typeof AIDaySchema>;

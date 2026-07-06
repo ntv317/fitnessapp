@@ -82,6 +82,20 @@ All critical and medium issues were identified and fixed the same day.
 - Under Advanced Data Protection (user-enabled): end-to-end encrypted with on-device keys
 - No app-layer encryption applied (reliance on Apple's guarantee)
 
+## 4b. Follow-up Review (2026-07-07, second pass)
+
+Full-app re-review. No new critical issues. Findings fixed same day:
+
+- **MEDIUM — Watch cold-start unlock**: `WorkoutState.premiumRequired` defaulted to `false` and the watch never read `WCSession.receivedApplicationContext` at activation, so relaunching the watch app reset it to unlocked (phone still dropped inbound sets). Fixed: persisted context is applied in `activationDidCompleteWith` (with stale `isResting` stripped) and the default flipped to locked-until-confirmed.
+- **LOW — Application-context clobbering**: `PremiumContext` (entitlement flag only) and `sendWorkoutState` (full snapshot, no flag) each replaced the whole `applicationContext` dict, so the persisted context only ever held one writer's keys. Fixed: `WatchSessionHandler` merges into the last-sent context (seeded from `WCSession.applicationContext`).
+- **LOW — WeeklyProgress week mismatch**: `appendSet` credited the week of `Date.now()` while deletes debit the week of `log.timestamp`; a set appended just after a week rollover left a phantom count. Fixed: appends now use the log's week.
+- **LOW — Migrations v5/v6 not re-entry safe**: a kill between those blocks and the final `PRAGMA user_version` bricked the DB on relaunch (duplicate table/column errors); v5's multi-statement rebuild was also non-transactional. Fixed: both blocks are guarded by index/column existence checks and run in transactions, matching v8/v9/v11.
+- **LOW — Unbounded AI-import values**: Zod schema accepted arbitrarily long names and e.g. `sets: 1e9` (which becomes a progress denominator). Fixed: caps added (name ≤ 80, sets ≤ 20, reps ≤ 100, ≤ 30 exercises/day, ≤ 14 days).
+- **LOW — getDatabase() race**: concurrent first calls could open two connections. Fixed: the open promise is memoized (reset on failure).
+- **App Store risk — hardcoded paywall claims**: "SAVE 44%", "7-day free trial", and USD fallback prices were hardcoded. Fixed: trial badge derives from `introPrice`, savings computed from real package prices, and missing offerings show "—" with a disabled CTA instead of fake prices.
+
+Hardening added in the same pass: a local `fitness-pre-restore.db` snapshot (VACUUM INTO) is taken before every restore swap so a mistaken restore is recoverable; the notification permission prompt moved from app launch to the first rest-timer start; undownloaded iCloud backups list as "In iCloud" instead of 0.0 MB.
+
 ## 5. Device Migration
 
 - **Purchases**: Restored via RevenueCat `restorePurchases()` using Apple ID receipt; covers subscriptions and lifetime purchases

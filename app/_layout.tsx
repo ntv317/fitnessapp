@@ -5,7 +5,6 @@ import '@/core/theme/applyGlobalFont'; // default font shim — must run before 
 import { AppProviders } from '@/core/providers/AppProviders';
 import { useAutoBackup } from '@/features/backup/hooks/useBackups';
 import * as Notifications from 'expo-notifications';
-import { useEffect } from 'react';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -23,10 +22,6 @@ function AutoBackup() {
 }
 
 export default function RootLayout() {
-  useEffect(() => {
-    Notifications.requestPermissionsAsync();
-  }, []);
-
   return (
     <AppProviders>
       <SafeAreaProvider>

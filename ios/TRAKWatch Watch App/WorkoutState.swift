@@ -18,7 +18,9 @@ struct WorkoutState {
     var showWeightConversion: Bool = false
     var showPlateBreakdown: Bool = true
     var accentColor: String = "#a83300"
-    var premiumRequired: Bool = false
+    // Locked until the phone positively confirms entitlement — a cold start
+    // with no received context must not default to unlocked.
+    var premiumRequired: Bool = true
 
     mutating func update(from dict: [String: Any]) {
         if let v = dict["exerciseName"] as? String { exerciseName = v }

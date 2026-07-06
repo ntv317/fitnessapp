@@ -215,7 +215,6 @@ export class WorkoutRepository implements IWorkoutRepository {
     rpe: number | null = null,
     note: string | null = null,
   ): Promise<void> {
-    const weekStart = weekStartOf(Date.now());
     await this.db.withTransactionAsync(async () => {
       const existing = await this.db.getFirstAsync<{ one: number }>(
         'SELECT 1 AS one FROM WorkoutSets WHERE log_id = ? AND set_order = ?;',
@@ -228,6 +227,14 @@ export class WorkoutRepository implements IWorkoutRepository {
         [logId, setOrder, reps, weight, rpe, note],
       );
       if (!existing) {
+        // Credit the week of the log, not of "now" — deleteSet/deleteLog
+        // decrement by log week, so a set appended minutes after a week
+        // rollover must land in the same bucket it will be removed from.
+        const log = await this.db.getFirstAsync<{ timestamp: number }>(
+          'SELECT timestamp FROM WorkoutLogs WHERE id = ?;',
+          [logId],
+        );
+        const weekStart = weekStartOf(log?.timestamp ?? Date.now());
         await this.db.runAsync(
           `INSERT INTO WeeklyProgress (exercise_id, day_tag, week_start, sets_done) VALUES (?, ?, ?, 1)
            ON CONFLICT(exercise_id, day_tag, week_start) DO UPDATE SET sets_done = sets_done + 1;`,

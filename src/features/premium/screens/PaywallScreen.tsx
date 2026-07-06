@@ -27,11 +27,14 @@ const BENEFITS: { icon: React.ComponentProps<typeof Ionicons>['name']; label: st
   { icon: 'shield-checkmark-outline', label: 'Indie-built, private, no ads' },
 ];
 
-const FALLBACK_PRICES: Record<PlanKey, string> = {
-  monthly: '$2.99',
-  yearly: '$19.99',
-  lifetime: '$49.99',
-};
+// A free intro offer configured in App Store Connect, e.g. "7-day free trial".
+// Derived from the store so the screen can never claim a trial that no longer
+// exists (App Store rejection / refund-dispute risk).
+function trialLabel(pkg: PurchasesPackage | undefined): string | null {
+  const intro = pkg?.product.introPrice;
+  if (!intro || intro.price !== 0) return null;
+  return `${intro.periodNumberOfUnits}-${intro.periodUnit.toLowerCase()} free trial`;
+}
 
 export default function PaywallScreen() {
   const router = useRouter();
@@ -46,7 +49,15 @@ export default function PaywallScreen() {
     if (pkg.packageType === 'LIFETIME') packages.lifetime = pkg;
   }
 
-  const priceFor = (plan: PlanKey) => packages[plan]?.product.priceString ?? FALLBACK_PRICES[plan];
+  // No fallback prices: showing hardcoded USD amounts to another storefront
+  // (or when offerings fail to load) misstates the real charge.
+  const priceFor = (plan: PlanKey) => packages[plan]?.product.priceString ?? '—';
+
+  const trial = trialLabel(packages.yearly);
+  const monthlyPrice = packages.monthly?.product.price;
+  const yearlyPrice = packages.yearly?.product.price;
+  const savePct =
+    monthlyPrice && yearlyPrice ? Math.round((1 - yearlyPrice / (monthlyPrice * 12)) * 100) : null;
 
   const handlePurchase = async () => {
     const pkg = packages[selected];
@@ -119,8 +130,8 @@ export default function PaywallScreen() {
           label="Yearly"
           price={priceFor('yearly')}
           suffix="/yr"
-          badge="SAVE 44%"
-          note="7-day free trial"
+          badge={savePct != null && savePct > 0 ? `SAVE ${savePct}%` : undefined}
+          note={trial ?? undefined}
           selected={selected === 'yearly'}
           onPress={() => setSelected('yearly')}
         />
@@ -132,10 +143,22 @@ export default function PaywallScreen() {
           onPress={() => setSelected('lifetime')}
         />
 
+        {!offerings?.current && (
+          <AppText variant="labelMono" center color={Dark.muted} style={styles.storeNote}>
+            Prices load from the App Store — check your connection.
+          </AppText>
+        )}
+
         <Button
-          label={isPro ? 'You already have Pro' : selected === 'yearly' ? 'Start 7-day free trial' : 'Continue'}
+          label={
+            isPro
+              ? 'You already have Pro'
+              : selected === 'yearly' && trial
+                ? `Start ${trial}`
+                : 'Continue'
+          }
           onPress={handlePurchase}
-          disabled={busy || isPro}
+          disabled={busy || isPro || !packages[selected]}
           fullWidth
           style={styles.cta}
         />
@@ -238,6 +261,7 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: Colors.white, fontFamily: Fonts.monoBold, fontSize: 10, letterSpacing: 0.5 },
   cta: { marginTop: Spacing.sm },
+  storeNote: { marginTop: Spacing.xs },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',

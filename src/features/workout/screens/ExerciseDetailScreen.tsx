@@ -446,6 +446,14 @@ export default function ExerciseDetailScreen() {
       const { weightKg: nextWeightKg, reps: nextReps } = prefillFor(loggedN);
       const weightForPlates = nextWeightKg > 0 ? nextWeightKg : suggestedWeight;
       const { plates } = calculatePlates(weightForPlates, barbellConfig.barWeight, barbellConfig.plates);
+      // Session-so-far stats for the watch summary card. The current exercise
+      // is summed from live sets (it isn't in the session until endRest), and
+      // excluded from the session list so a re-completed exercise isn't
+      // counted twice.
+      const sess = getSession();
+      const currentVolumeKg = updatedSets.reduce((sum, s) => sum + s.weight * s.reps, 0);
+      const otherVolumeKg =
+        sess?.exercises.reduce((sum, e) => sum + (e.name === exercise?.name ? 0 : e.volumeKg), 0) ?? 0;
       sendWorkoutState({
         exerciseName: exercise?.name ?? '',
         setNumber: loggedN + 1,
@@ -455,6 +463,9 @@ export default function ExerciseDetailScreen() {
         restDuration,
         isResting,
         isWorkoutComplete: loggedN >= target && !isResting,
+        totalVolume: Math.round(fromKg(otherVolumeKg + currentVolumeKg)),
+        elapsedMinutes: sess ? Math.max(0, Math.round((Date.now() - sess.startTime) / 60000)) : 0,
+        workoutName: dayTag ?? '',
         unit,
         weightStep,
         plateBreakdown: plates.map((p) => Math.round(fromKg(p) * 10) / 10),
@@ -463,7 +474,7 @@ export default function ExerciseDetailScreen() {
         accentColor: accent,
       });
     },
-    [exercise, target, prefillFor, suggestedWeight, suggestedReps, sendWorkoutState, fromKg, unit, weightStep, barbellConfig, showConversion, showPlateBreakdown, accent],
+    [exercise, target, prefillFor, suggestedWeight, suggestedReps, sendWorkoutState, fromKg, unit, weightStep, barbellConfig, showConversion, showPlateBreakdown, accent, dayTag],
   );
 
   // Start session tracking on the very first exercise (no startTime in params).

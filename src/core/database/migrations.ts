@@ -121,22 +121,33 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   if (version === 5) {
     // Add UNIQUE(log_id, set_order) to prevent duplicate sets from a watch+phone race.
     // SQLite can't add constraints via ALTER TABLE, so we rebuild the table.
-    await db.execAsync(`
-      CREATE TABLE WorkoutSets_new (
-        id        INTEGER PRIMARY KEY AUTOINCREMENT,
-        log_id    INTEGER NOT NULL,
-        set_order INTEGER NOT NULL,
-        reps      INTEGER NOT NULL CHECK (reps >= 0),
-        weight    REAL    NOT NULL CHECK (weight >= 0),
-        FOREIGN KEY (log_id) REFERENCES WorkoutLogs (id) ON DELETE CASCADE,
-        UNIQUE (log_id, set_order)
-      );
-      INSERT OR IGNORE INTO WorkoutSets_new (id, log_id, set_order, reps, weight)
-        SELECT id, log_id, set_order, reps, weight FROM WorkoutSets;
-      DROP TABLE WorkoutSets;
-      ALTER TABLE WorkoutSets_new RENAME TO WorkoutSets;
-      CREATE INDEX IF NOT EXISTS idx_sets_log ON WorkoutSets (log_id);
-    `);
+    // Re-entry safe (see v9 comment): skip when the constraint already exists,
+    // and run the rebuild in one transaction so a kill mid-batch can't leave
+    // WorkoutSets dropped.
+    const setIndexes = await db.getAllAsync<{ origin: string; unique: number }>(
+      'PRAGMA index_list(WorkoutSets);',
+    );
+    if (!setIndexes.some((i) => i.origin === 'u' && i.unique === 1)) {
+      await db.withTransactionAsync(async () => {
+        await db.execAsync(`
+          DROP TABLE IF EXISTS WorkoutSets_new;
+          CREATE TABLE WorkoutSets_new (
+            id        INTEGER PRIMARY KEY AUTOINCREMENT,
+            log_id    INTEGER NOT NULL,
+            set_order INTEGER NOT NULL,
+            reps      INTEGER NOT NULL CHECK (reps >= 0),
+            weight    REAL    NOT NULL CHECK (weight >= 0),
+            FOREIGN KEY (log_id) REFERENCES WorkoutLogs (id) ON DELETE CASCADE,
+            UNIQUE (log_id, set_order)
+          );
+          INSERT OR IGNORE INTO WorkoutSets_new (id, log_id, set_order, reps, weight)
+            SELECT id, log_id, set_order, reps, weight FROM WorkoutSets;
+          DROP TABLE WorkoutSets;
+          ALTER TABLE WorkoutSets_new RENAME TO WorkoutSets;
+          CREATE INDEX IF NOT EXISTS idx_sets_log ON WorkoutSets (log_id);
+        `);
+      });
+    }
     version = 6;
   }
 
@@ -145,37 +156,51 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
     // and Shoulders) must track progress per day, not per exercise. Logs get a
     // day_tag, and WeeklyProgress is re-keyed to include it. Historical rows
     // are attributed to the exercise's primary day (best effort).
-    await db.execAsync(`
-      ALTER TABLE WorkoutLogs ADD COLUMN day_tag TEXT DEFAULT NULL;
+    // Re-entry safe (see v9 comment): each half is guarded by a column check
+    // and runs transactionally.
+    const logCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(WorkoutLogs);');
+    if (!logCols.some((c) => c.name === 'day_tag')) {
+      await db.withTransactionAsync(async () => {
+        await db.execAsync(`
+          ALTER TABLE WorkoutLogs ADD COLUMN day_tag TEXT DEFAULT NULL;
 
-      UPDATE WorkoutLogs SET day_tag = (
-        SELECT wd.name FROM ExerciseDays ed
-        JOIN WorkoutDays wd ON wd.id = ed.day_id
-        WHERE ed.exercise_id = WorkoutLogs.exercise_id
-        ORDER BY ed.sort_order ASC, ed.rowid ASC LIMIT 1
-      );
-
-      CREATE TABLE WeeklyProgress_new (
-        exercise_id INTEGER NOT NULL REFERENCES Exercises(id) ON DELETE CASCADE,
-        day_tag     TEXT    NOT NULL DEFAULT '',
-        week_start  INTEGER NOT NULL,
-        sets_done   INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (exercise_id, day_tag, week_start)
-      );
-      INSERT INTO WeeklyProgress_new (exercise_id, day_tag, week_start, sets_done)
-        SELECT wp.exercise_id,
-               COALESCE((
-                 SELECT wd.name FROM ExerciseDays ed
-                 JOIN WorkoutDays wd ON wd.id = ed.day_id
-                 WHERE ed.exercise_id = wp.exercise_id
-                 ORDER BY ed.sort_order ASC, ed.rowid ASC LIMIT 1
-               ), ''),
-               wp.week_start, wp.sets_done
-        FROM WeeklyProgress wp;
-      DROP TABLE WeeklyProgress;
-      ALTER TABLE WeeklyProgress_new RENAME TO WeeklyProgress;
-      CREATE INDEX IF NOT EXISTS idx_weekly_week ON WeeklyProgress (week_start);
-    `);
+          UPDATE WorkoutLogs SET day_tag = (
+            SELECT wd.name FROM ExerciseDays ed
+            JOIN WorkoutDays wd ON wd.id = ed.day_id
+            WHERE ed.exercise_id = WorkoutLogs.exercise_id
+            ORDER BY ed.sort_order ASC, ed.rowid ASC LIMIT 1
+          );
+        `);
+      });
+    }
+    const wpCols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(WeeklyProgress);');
+    if (!wpCols.some((c) => c.name === 'day_tag')) {
+      await db.withTransactionAsync(async () => {
+        await db.execAsync(`
+          DROP TABLE IF EXISTS WeeklyProgress_new;
+          CREATE TABLE WeeklyProgress_new (
+            exercise_id INTEGER NOT NULL REFERENCES Exercises(id) ON DELETE CASCADE,
+            day_tag     TEXT    NOT NULL DEFAULT '',
+            week_start  INTEGER NOT NULL,
+            sets_done   INTEGER NOT NULL DEFAULT 0,
+            PRIMARY KEY (exercise_id, day_tag, week_start)
+          );
+          INSERT INTO WeeklyProgress_new (exercise_id, day_tag, week_start, sets_done)
+            SELECT wp.exercise_id,
+                   COALESCE((
+                     SELECT wd.name FROM ExerciseDays ed
+                     JOIN WorkoutDays wd ON wd.id = ed.day_id
+                     WHERE ed.exercise_id = wp.exercise_id
+                     ORDER BY ed.sort_order ASC, ed.rowid ASC LIMIT 1
+                   ), ''),
+                   wp.week_start, wp.sets_done
+            FROM WeeklyProgress wp;
+          DROP TABLE WeeklyProgress;
+          ALTER TABLE WeeklyProgress_new RENAME TO WeeklyProgress;
+          CREATE INDEX IF NOT EXISTS idx_weekly_week ON WeeklyProgress (week_start);
+        `);
+      });
+    }
     version = 7;
   }
 

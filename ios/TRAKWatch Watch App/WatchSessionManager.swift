@@ -46,6 +46,21 @@ class WatchSessionManager: NSObject, ObservableObject {
         }
     }
 
+    /// Clears the workout back to Idle after "Finish" — nothing pushes a
+    /// cleared state from the phone, so without this the summary sticks
+    /// until the next workout. Prefs and the premium lock are kept.
+    func finishWorkoutLocally() {
+        DispatchQueue.main.async {
+            self.workoutState.exerciseName = ""
+            self.workoutState.workoutName = ""
+            self.workoutState.isWorkoutComplete = false
+            self.workoutState.isResting = false
+            self.workoutState.totalVolume = 0
+            self.workoutState.elapsedMinutes = 0
+            self.workoutState.setNumber = 1
+        }
+    }
+
     // MARK: - Rest timer
 
     // Wall-clock based: the watch app suspends when the wrist drops, freezing
@@ -120,7 +135,28 @@ class WatchSessionManager: NSObject, ObservableObject {
 // MARK: - WCSessionDelegate
 
 extension WatchSessionManager: WCSessionDelegate {
-    func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {}
+    func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {
+        // didReceiveApplicationContext only fires for NEW contexts — on a cold
+        // start the last-known state (incl. the premium lock) must be read back
+        // from the persisted context or the app runs on defaults.
+        var context = session.receivedApplicationContext
+        if !context.isEmpty {
+            // A persisted rest state is stale by definition — never restart
+            // the countdown from it.
+            context["isResting"] = false
+            // A snapshot older than 4h is yesterday's workout: restore only the
+            // premium lock, not the workout, so the watch wakes up Idle instead
+            // of mid-set. Contexts without a stamp (older phone build) are
+            // treated as stale.
+            let sentAtMs = (context["stateAt"] as? Double) ?? 0
+            if Date().timeIntervalSince1970 - sentAtMs / 1000 > 4 * 3600 {
+                let premium = context["premiumRequired"]
+                context = [:]
+                if let premium { context["premiumRequired"] = premium }
+            }
+            DispatchQueue.main.async { self.applyUpdate(context) }
+        }
+    }
 
     func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
         DispatchQueue.main.async { self.applyUpdate(context) }

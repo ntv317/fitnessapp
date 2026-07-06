@@ -25,6 +25,9 @@ export interface WatchWorkoutState {
   restDuration: number;
   isResting: boolean;
   isWorkoutComplete: boolean;
+  totalVolume: number; // session volume so far, in the active display unit
+  elapsedMinutes: number;
+  workoutName: string; // day tag, e.g. "Push"
   unit: 'kg' | 'lbs';
   weightStep: number; // +/- and Digital Crown increment, in the active unit
   plateBreakdown: number[]; // plates per side, largest-first; empty = no config
@@ -86,7 +89,9 @@ export function useWatchSync(options: UseWatchSyncOptions = {}) {
 
   const sendWorkoutState = useCallback((state: WatchWorkoutState) => {
     if (blocked) return;
-    WatchSync?.updateState(state as unknown as Record<string, unknown>);
+    // stateAt lets the watch ignore a stale persisted snapshot on cold start
+    // (e.g. yesterday's workout) while still restoring the premium lock.
+    WatchSync?.updateState({ ...state, stateAt: Date.now() } as unknown as Record<string, unknown>);
   }, [blocked]);
 
   const sendMessage = useCallback((message: WatchMessage) => {
