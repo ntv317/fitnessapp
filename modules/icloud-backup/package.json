@@ -1,0 +1,7 @@
+{
+  "name": "icloud-backup",
+  "version": "1.0.0",
+  "description": "iCloud Documents backup bridge for the fitness.db snapshot",
+  "main": "index.ts",
+  "license": "MIT"
+}

@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { AppText } from '@/core/ui/AppText';
 import { Colors, Spacing, Radius, Fonts, FontSize } from '@/core/theme';
 import { useUnit } from '@/core/context/UnitContext';
+import { usePremium } from '@/core/context/PremiumContext';
 import { useClearHistory, useClearAllData } from '@/features/workout/hooks/useExercises';
 
 const APP_VERSION = '1.0.0';
@@ -13,6 +14,7 @@ const APP_VERSION = '1.0.0';
 export default function SettingsScreen() {
   const router = useRouter();
   const { unit, toggle, showConversion, toggleConversion, showPlateBreakdown, togglePlateBreakdown } = useUnit();
+  const { isPro } = usePremium();
   const clearHistory = useClearHistory();
   const clearAll = useClearAllData();
 
@@ -128,6 +130,17 @@ export default function SettingsScreen() {
           Data
         </AppText>
         <View style={styles.group}>
+          <TouchableOpacity
+            style={styles.row}
+            onPress={() => router.push((isPro ? '/backup' : '/paywall') as never)}
+          >
+            <View style={styles.iCloudRow}>
+              <AppText variant="bodyMd">iCloud Backup</AppText>
+              {!isPro && <Ionicons name="lock-closed" size={14} color={Colors.textMuted} />}
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+          <View style={styles.divider} />
           <TouchableOpacity style={styles.row} onPress={handleClearData}>
             <AppText variant="bodyMd" color={Colors.danger}>Clear Data</AppText>
             <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
@@ -178,4 +191,5 @@ const styles = StyleSheet.create({
   },
   divider: { height: 1, backgroundColor: Colors.border, marginLeft: Spacing.md },
   unitRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  iCloudRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
 });

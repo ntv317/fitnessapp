@@ -3,6 +3,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import '@/core/theme/applyGlobalFont'; // default font shim — must run before any Text renders
 import { AppProviders } from '@/core/providers/AppProviders';
+import { useAutoBackup } from '@/features/backup/hooks/useBackups';
 import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 
@@ -16,6 +17,11 @@ Notifications.setNotificationHandler({
   }),
 });
 
+function AutoBackup() {
+  useAutoBackup();
+  return null;
+}
+
 export default function RootLayout() {
   useEffect(() => {
     Notifications.requestPermissionsAsync();
@@ -24,8 +30,11 @@ export default function RootLayout() {
   return (
     <AppProviders>
       <SafeAreaProvider>
+        <AutoBackup />
         <StatusBar style="auto" />
-        <Stack screenOptions={{ headerShown: false }} />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="paywall" options={{ presentation: 'modal' }} />
+        </Stack>
       </SafeAreaProvider>
     </AppProviders>
   );

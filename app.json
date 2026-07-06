@@ -15,6 +15,12 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "io.liftr.app",
+      "usesIcloudStorage": true,
+      "entitlements": {
+        "com.apple.developer.icloud-container-identifiers": ["iCloud.io.liftr.app"],
+        "com.apple.developer.icloud-services": ["CloudDocuments"],
+        "com.apple.developer.ubiquity-container-identifiers": ["iCloud.io.liftr.app"]
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }

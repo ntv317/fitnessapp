@@ -44,6 +44,9 @@ export interface IWorkoutRepository {
   /** Aggregate volume/sets/days-trained for the week starting at weekStart. */
   getWeeklyStats(weekStart: number): Promise<WeeklyStats>;
 
+  /** Volume per muscle group for the week starting at weekStart, highest first. */
+  getWeeklyMuscleVolume(weekStart: number): Promise<{ muscleGroup: string; volumeKg: number }[]>;
+
   // ── Body weight ───────────────────────────────────────────────────────────
 
   logBodyWeight(weightKg: number, timestamp: number): Promise<BodyWeightEntry>;

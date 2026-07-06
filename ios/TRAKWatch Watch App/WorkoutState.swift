@@ -18,6 +18,7 @@ struct WorkoutState {
     var showWeightConversion: Bool = false
     var showPlateBreakdown: Bool = true
     var accentColor: String = "#a83300"
+    var premiumRequired: Bool = false
 
     mutating func update(from dict: [String: Any]) {
         if let v = dict["exerciseName"] as? String { exerciseName = v }
@@ -37,5 +38,6 @@ struct WorkoutState {
         if let v = dict["showWeightConversion"] as? Bool { showWeightConversion = v }
         if let v = dict["showPlateBreakdown"] as? Bool { showPlateBreakdown = v }
         if let v = dict["accentColor"] as? String { accentColor = v }
+        if let v = dict["premiumRequired"] as? Bool { premiumRequired = v }
     }
 }

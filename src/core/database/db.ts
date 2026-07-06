@@ -1,4 +1,4 @@
-import { openDatabaseAsync, type SQLiteDatabase } from 'expo-sqlite';
+import { openDatabaseAsync, defaultDatabaseDirectory, type SQLiteDatabase } from 'expo-sqlite';
 import { migrateDbIfNeeded } from './migrations';
 
 let _db: SQLiteDatabase | null = null;
@@ -14,6 +14,18 @@ export async function getDatabase(): Promise<SQLiteDatabase> {
   await _db.execAsync('PRAGMA foreign_keys = ON;');
   await migrateDbIfNeeded(_db);
   return _db;
+}
+
+/** Closes the shared connection so the file can be replaced (iCloud restore). */
+export async function closeDatabase(): Promise<void> {
+  if (!_db) return;
+  await _db.closeAsync();
+  _db = null;
+}
+
+/** Absolute path of fitness.db on disk. */
+export function getDatabasePath(): string {
+  return `${defaultDatabaseDirectory}/fitness.db`;
 }
 
 export type { SQLiteDatabase };

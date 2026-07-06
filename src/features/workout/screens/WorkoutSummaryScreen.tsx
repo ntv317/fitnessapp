@@ -1,15 +1,21 @@
-import { useState } from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, ScrollView, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, Spacing, Radius, Fonts, FontSize } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
+import { usePremium } from '@/core/context/PremiumContext';
 import { getSession, clearSession } from '../utils/workoutSession';
 import { formatWeight } from '@/core/utils/format';
 
 const HEADLINES = ['Day done.', 'Strong.', 'Work in.', 'Keep going.', 'One more done.'];
+
+const WORKOUT_COUNT_KEY = '@fitness/completedWorkouts';
+const PRO_PROMPT_SHOWN_KEY = '@fitness/proMilestonePromptShown';
+const PRO_PROMPT_THRESHOLD = 10;
 
 export default function WorkoutSummaryScreen() {
   const router = useRouter();
@@ -26,6 +32,29 @@ export default function WorkoutSummaryScreen() {
   const exerciseCount = session?.exercises.length ?? 0;
   const prNames = session?.exercises.filter((e) => e.isPR).map((e) => e.name) ?? [];
   const [headline] = useState(() => HEADLINES[Math.floor(Math.random() * HEADLINES.length)]);
+  const { isPro } = usePremium();
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const count = parseInt((await AsyncStorage.getItem(WORKOUT_COUNT_KEY)) ?? '0') + 1;
+        await AsyncStorage.setItem(WORKOUT_COUNT_KEY, String(count));
+        if (isPro || count < PRO_PROMPT_THRESHOLD) return;
+        if (await AsyncStorage.getItem(PRO_PROMPT_SHOWN_KEY)) return;
+        await AsyncStorage.setItem(PRO_PROMPT_SHOWN_KEY, 'true');
+        Alert.alert(
+          `${count} workouts logged`,
+          'Back them up to iCloud so you never lose a PR?',
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'See LIFTREPS Pro', onPress: () => router.push('/paywall' as never) },
+          ],
+        );
+      } catch {}
+    })();
+    // Run once per summary view — counts this completed workout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDone = () => {
     clearSession();
@@ -47,6 +76,19 @@ export default function WorkoutSummaryScreen() {
             </AppText>
           ) : null}
         </View>
+
+        {/* PR celebration (Pro) */}
+        {isPro && prNames.length > 0 && (
+          <View style={[styles.prHero, { borderColor: accent }]}>
+            <Ionicons name="trophy" size={28} color={accent} />
+            <AppText variant="headlineMd" style={{ color: accent }}>
+              New PR{prNames.length > 1 ? 's' : ''}
+            </AppText>
+            <AppText variant="bodyMd" color={Colors.textSecondary} center>
+              {prNames.join(' · ')}
+            </AppText>
+          </View>
+        )}
 
         {/* Stats card */}
         <View style={styles.statsCard}>
@@ -149,6 +191,16 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
 
+  prHero: {
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surface,
+    borderWidth: 2,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
   statsCard: {
     flexDirection: 'row',
     backgroundColor: Colors.surface,
