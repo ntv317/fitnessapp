@@ -1,6 +1,8 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { drizzle, type ExpoSQLiteDatabase } from 'drizzle-orm/expo-sqlite';
+import { getTableColumns, sql, eq, asc } from 'drizzle-orm';
 import * as schema from '@/core/database/schema';
+import { exercises, planDays, planExercises, plans } from '@/core/database/schema';
 import type { IWorkoutRepository } from './IWorkoutRepository';
 import type {
   BodyWeightEntry,
@@ -64,6 +66,22 @@ export class WorkoutRepository implements IWorkoutRepository {
     LIMIT 1
   )`;
 
+  // Drizzle-select form of DAY_TAG_SQL, correlated on the outer Exercises row.
+  // The correlation is written as the fully-qualified `"Exercises"."id"` on
+  // purpose: in a single-table SELECT Drizzle renders columns unqualified, so a
+  // `${exercises.id}` placeholder would collapse to a bare `"id"` that SQLite
+  // reads as ambiguous against the subquery's own PlanExercises/PlanDays/Plans
+  // id columns. `.from(exercises)` always renders the table as "Exercises".
+  private static readonly DAY_TAG_COLUMN = sql<string | null>`(
+    SELECT pd.name
+    FROM PlanExercises pe
+    JOIN PlanDays pd ON pd.id = pe.plan_day_id
+    JOIN Plans p ON p.id = pd.plan_id AND p.is_active = 1
+    WHERE pe.exercise_id = "Exercises"."id"
+    ORDER BY pd.sort_order ASC, pe.sort_order ASC
+    LIMIT 1
+  )`;
+
   // ── Mappers ──────────────────────────────────────────────────────────────
 
   // plan_target_sets (when present) overrides the exercise's own target_sets —
@@ -108,47 +126,55 @@ export class WorkoutRepository implements IWorkoutRepository {
   // ── Exercises ─────────────────────────────────────────────────────────────
 
   async getExerciseByName(name: string): Promise<Exercise | null> {
-    const row = await this.db.getFirstAsync<ExerciseWithDay>(
-      `SELECT e.*, ${WorkoutRepository.DAY_TAG_SQL} AS day_tag FROM Exercises e WHERE e.name = ?;`,
-      [name],
-    );
+    const row = await this.orm
+      .select({ ...getTableColumns(exercises), day_tag: WorkoutRepository.DAY_TAG_COLUMN })
+      .from(exercises)
+      .where(eq(exercises.name, name))
+      .get();
     return row ? WorkoutRepository.toExercise(row) : null;
   }
 
   async getExerciseByCatalogId(catalogId: string): Promise<Exercise | null> {
-    const row = await this.db.getFirstAsync<ExerciseWithDay>(
-      `SELECT e.*, ${WorkoutRepository.DAY_TAG_SQL} AS day_tag FROM Exercises e WHERE e.catalog_id = ?;`,
-      [catalogId],
-    );
+    const row = await this.orm
+      .select({ ...getTableColumns(exercises), day_tag: WorkoutRepository.DAY_TAG_COLUMN })
+      .from(exercises)
+      .where(eq(exercises.catalog_id, catalogId))
+      .get();
     return row ? WorkoutRepository.toExercise(row) : null;
   }
 
   async getExerciseById(id: number): Promise<Exercise | null> {
-    const row = await this.db.getFirstAsync<ExerciseWithDay>(
-      `SELECT e.*, ${WorkoutRepository.DAY_TAG_SQL} AS day_tag FROM Exercises e WHERE e.id = ?;`,
-      [id],
-    );
+    const row = await this.orm
+      .select({ ...getTableColumns(exercises), day_tag: WorkoutRepository.DAY_TAG_COLUMN })
+      .from(exercises)
+      .where(eq(exercises.id, id))
+      .get();
     return row ? WorkoutRepository.toExercise(row) : null;
   }
 
   async getAllExercises(): Promise<Exercise[]> {
-    const rows = await this.db.getAllAsync<ExerciseWithDay>(
-      `SELECT e.*, ${WorkoutRepository.DAY_TAG_SQL} AS day_tag FROM Exercises e ORDER BY e.name ASC;`,
-    );
+    const rows = await this.orm
+      .select({ ...getTableColumns(exercises), day_tag: WorkoutRepository.DAY_TAG_COLUMN })
+      .from(exercises)
+      .orderBy(asc(exercises.name));
     return rows.map(WorkoutRepository.toExercise);
   }
 
   async getAllDays(): Promise<{ dayTag: string; exercises: Exercise[] }[]> {
-    type Row = ExerciseRow & { day_name: string; plan_target_sets: number; rep_min: number | null; rep_max: number | null };
-    const rows = await this.db.getAllAsync<Row>(
-      `SELECT e.*, pd.name AS day_name, pe.target_sets AS plan_target_sets, pe.rep_min, pe.rep_max
-       FROM Plans p
-       JOIN PlanDays pd ON pd.plan_id = p.id
-       JOIN PlanExercises pe ON pe.plan_day_id = pd.id
-       JOIN Exercises e ON e.id = pe.exercise_id
-       WHERE p.is_active = 1
-       ORDER BY pd.sort_order ASC, pe.sort_order ASC, e.id ASC;`,
-    );
+    const rows = await this.orm
+      .select({
+        ...getTableColumns(exercises),
+        day_name: planDays.name,
+        plan_target_sets: planExercises.target_sets,
+        rep_min: planExercises.rep_min,
+        rep_max: planExercises.rep_max,
+      })
+      .from(plans)
+      .innerJoin(planDays, eq(planDays.plan_id, plans.id))
+      .innerJoin(planExercises, eq(planExercises.plan_day_id, planDays.id))
+      .innerJoin(exercises, eq(exercises.id, planExercises.exercise_id))
+      .where(eq(plans.is_active, 1))
+      .orderBy(asc(planDays.sort_order), asc(planExercises.sort_order), asc(exercises.id));
     const map = new Map<string, Exercise[]>();
     for (const row of rows) {
       const tag = row.day_name;
