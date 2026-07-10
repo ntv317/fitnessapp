@@ -1,8 +1,8 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { drizzle, type ExpoSQLiteDatabase } from 'drizzle-orm/expo-sqlite';
-import { getTableColumns, sql, eq, asc } from 'drizzle-orm';
+import { getTableColumns, sql, eq, ne, asc } from 'drizzle-orm';
 import * as schema from '@/core/database/schema';
-import { exercises, planDays, planExercises, plans } from '@/core/database/schema';
+import { exercises, planDays, planExercises, plans, workoutLogs } from '@/core/database/schema';
 import type { IWorkoutRepository } from './IWorkoutRepository';
 import type {
   BodyWeightEntry,
@@ -203,41 +203,39 @@ export class WorkoutRepository implements IWorkoutRepository {
     // customized — only a genuine re-import (e.g. AI import correcting a
     // categorization) should overwrite those.
     const keepExisting = input.keepExistingSettings ? 1 : 0;
-    const row = await this.db.getFirstAsync<ExerciseRow>(
-      `INSERT INTO Exercises (name, default_rest_seconds, is_compound, is_custom, target_sets, catalog_id, muscle_group)
-       VALUES (?, ?, ?, ?, COALESCE(?, 3), ?, ?)
-       ON CONFLICT(name) DO UPDATE SET
-         default_rest_seconds = CASE WHEN ? THEN Exercises.default_rest_seconds ELSE excluded.default_rest_seconds END,
-         is_compound          = CASE WHEN ? THEN Exercises.is_compound ELSE excluded.is_compound END,
-         is_custom            = CASE WHEN ? THEN Exercises.is_custom ELSE excluded.is_custom END,
-         target_sets          = COALESCE(?, Exercises.target_sets),
-         catalog_id           = COALESCE(?, Exercises.catalog_id),
-         muscle_group         = COALESCE(?, Exercises.muscle_group)
-       RETURNING *;`,
-      [
-        patchedInput.name,
-        patchedInput.defaultRestSeconds,
-        patchedInput.isCompound ? 1 : 0,
-        patchedInput.isCustom ? 1 : 0,
-        target,
-        catalogId,
-        muscleGroup,
-        keepExisting,
-        keepExisting,
-        keepExisting,
-        target,
-        catalogId,
-        muscleGroup,
-      ],
-    );
+    const row = await this.orm
+      .insert(exercises)
+      .values({
+        name: patchedInput.name,
+        default_rest_seconds: patchedInput.defaultRestSeconds,
+        is_compound: patchedInput.isCompound ? 1 : 0,
+        is_custom: patchedInput.isCustom ? 1 : 0,
+        target_sets: target ?? 3,
+        catalog_id: catalogId,
+        muscle_group: muscleGroup,
+      })
+      .onConflictDoUpdate({
+        target: exercises.name,
+        set: {
+          default_rest_seconds: sql`CASE WHEN ${keepExisting} THEN ${exercises.default_rest_seconds} ELSE excluded.default_rest_seconds END`,
+          is_compound: sql`CASE WHEN ${keepExisting} THEN ${exercises.is_compound} ELSE excluded.is_compound END`,
+          is_custom: sql`CASE WHEN ${keepExisting} THEN ${exercises.is_custom} ELSE excluded.is_custom END`,
+          target_sets: sql`COALESCE(${target}, ${exercises.target_sets})`,
+          catalog_id: sql`COALESCE(${catalogId}, ${exercises.catalog_id})`,
+          muscle_group: sql`COALESCE(${muscleGroup}, ${exercises.muscle_group})`,
+        },
+      })
+      .returning()
+      .get();
     if (!row) throw new Error(`upsertExercise failed for "${input.name}"`);
 
     // Plan membership (which day, if any) is managed explicitly via
     // addPlanExercise — not implied by this call.
-    const dayRow = await this.db.getFirstAsync<{ day_tag: string | null }>(
-      `SELECT ${WorkoutRepository.DAY_TAG_SQL} AS day_tag FROM Exercises e WHERE e.id = ?;`,
-      [row.id],
-    );
+    const dayRow = await this.orm
+      .select({ day_tag: WorkoutRepository.DAY_TAG_COLUMN })
+      .from(exercises)
+      .where(eq(exercises.id, row.id))
+      .get();
     return WorkoutRepository.toExercise({ ...row, day_tag: dayRow?.day_tag ?? null });
   }
 
@@ -267,21 +265,21 @@ export class WorkoutRepository implements IWorkoutRepository {
         ? JSON.stringify(params.secondaryMuscleGroups)
         : null;
     try {
-      const result = await this.db.runAsync(
-        `INSERT INTO Exercises (name, default_rest_seconds, is_compound, is_custom, target_sets, catalog_id, muscle_group, secondary_muscle_groups, instructions, image_uris)
-         VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?);`,
-        [
-          params.name,
-          params.isCompound ? REST_COMPOUND : REST_ISOLATION,
-          params.isCompound ? 1 : 0,
-          params.targetSets ?? 3,
-          params.catalogId,
-          params.muscleGroup ?? null,
-          secondary,
+      const result = await this.orm
+        .insert(exercises)
+        .values({
+          name: params.name,
+          default_rest_seconds: params.isCompound ? REST_COMPOUND : REST_ISOLATION,
+          is_compound: params.isCompound ? 1 : 0,
+          is_custom: 1,
+          target_sets: params.targetSets ?? 3,
+          catalog_id: params.catalogId,
+          muscle_group: params.muscleGroup ?? null,
+          secondary_muscle_groups: secondary,
           instructions,
-          imageUris,
-        ],
-      );
+          image_uris: imageUris,
+        })
+        .run();
       return result.lastInsertRowId;
     } catch (e) {
       if (WorkoutRepository.isUniqueViolation(e)) throw new NameTakenError(params.name);
@@ -291,10 +289,10 @@ export class WorkoutRepository implements IWorkoutRepository {
 
   async checkNameAvailable(name: string, excludeId?: number): Promise<boolean> {
     const normalized = normalizeName(name);
-    const rows = await this.db.getAllAsync<{ id: number; name: string }>(
-      excludeId != null ? 'SELECT id, name FROM Exercises WHERE id != ?;' : 'SELECT id, name FROM Exercises;',
-      excludeId != null ? [excludeId] : [],
-    );
+    const rows = await this.orm
+      .select({ id: exercises.id, name: exercises.name })
+      .from(exercises)
+      .where(excludeId != null ? ne(exercises.id, excludeId) : undefined);
     return !rows.some((r) => normalizeName(r.name) === normalized);
   }
 
@@ -315,43 +313,25 @@ export class WorkoutRepository implements IWorkoutRepository {
   }
 
   async updateExercise(id: number, patch: ExercisePatch): Promise<Exercise> {
-    const sets: string[] = ['is_custom = 1'];
-    const params: (string | number | null)[] = [];
-    if (patch.name !== undefined) {
-      sets.push('name = ?');
-      params.push(patch.name);
-    }
-    if (patch.isCompound !== undefined) {
-      sets.push('is_compound = ?');
-      params.push(patch.isCompound ? 1 : 0);
-    }
-    if (patch.targetSets !== undefined) {
-      sets.push('target_sets = ?');
-      params.push(patch.targetSets);
-    }
-    if (patch.muscleGroup !== undefined) {
-      sets.push('muscle_group = ?');
-      params.push(patch.muscleGroup);
-    }
+    const set: Partial<typeof exercises.$inferInsert> = { is_custom: 1 };
+    if (patch.name !== undefined) set.name = patch.name;
+    if (patch.isCompound !== undefined) set.is_compound = patch.isCompound ? 1 : 0;
+    if (patch.targetSets !== undefined) set.target_sets = patch.targetSets;
+    if (patch.muscleGroup !== undefined) set.muscle_group = patch.muscleGroup;
     if (patch.secondaryMuscleGroups !== undefined) {
-      sets.push('secondary_muscle_groups = ?');
-      params.push(
+      set.secondary_muscle_groups =
         patch.secondaryMuscleGroups && patch.secondaryMuscleGroups.length > 0
           ? JSON.stringify(patch.secondaryMuscleGroups)
-          : null,
-      );
+          : null;
     }
     if (patch.instructions !== undefined) {
-      sets.push('instructions = ?');
-      params.push(patch.instructions ? JSON.stringify(patch.instructions) : null);
+      set.instructions = patch.instructions ? JSON.stringify(patch.instructions) : null;
     }
     if (patch.imageFilenames !== undefined) {
-      sets.push('image_uris = ?');
-      params.push(patch.imageFilenames ? JSON.stringify(patch.imageFilenames) : null);
+      set.image_uris = patch.imageFilenames ? JSON.stringify(patch.imageFilenames) : null;
     }
-    params.push(id);
     try {
-      await this.db.runAsync(`UPDATE Exercises SET ${sets.join(', ')} WHERE id = ?;`, params);
+      await this.orm.update(exercises).set(set).where(eq(exercises.id, id)).run();
     } catch (e) {
       if (WorkoutRepository.isUniqueViolation(e)) throw new NameTakenError(patch.name ?? '');
       throw e;
@@ -386,13 +366,19 @@ export class WorkoutRepository implements IWorkoutRepository {
     canonical: { name: string; isCompound: boolean; muscleGroup: string | null },
   ): Promise<Exercise> {
     try {
-      await this.db.runAsync(
-        `UPDATE Exercises SET
-           name = ?, is_compound = ?, muscle_group = ?,
-           secondary_muscle_groups = NULL, instructions = NULL, image_uris = NULL, is_custom = 0
-         WHERE id = ?;`,
-        [canonical.name, canonical.isCompound ? 1 : 0, canonical.muscleGroup, id],
-      );
+      await this.orm
+        .update(exercises)
+        .set({
+          name: canonical.name,
+          is_compound: canonical.isCompound ? 1 : 0,
+          muscle_group: canonical.muscleGroup,
+          secondary_muscle_groups: null,
+          instructions: null,
+          image_uris: null,
+          is_custom: 0,
+        })
+        .where(eq(exercises.id, id))
+        .run();
     } catch (e) {
       if (WorkoutRepository.isUniqueViolation(e)) throw new NameTakenError(canonical.name);
       throw e;
@@ -403,19 +389,23 @@ export class WorkoutRepository implements IWorkoutRepository {
   }
 
   async deleteCustomExercise(id: number): Promise<{ blocked: boolean; reason?: 'logged' | 'planned' }> {
-    const logged = await this.db.getFirstAsync<{ one: number }>(
-      'SELECT 1 AS one FROM WorkoutLogs WHERE exercise_id = ? LIMIT 1;',
-      [id],
-    );
+    const logged = await this.orm
+      .select({ one: sql`1` })
+      .from(workoutLogs)
+      .where(eq(workoutLogs.exercise_id, id))
+      .limit(1)
+      .get();
     if (logged) return { blocked: true, reason: 'logged' };
 
-    const planned = await this.db.getFirstAsync<{ one: number }>(
-      'SELECT 1 AS one FROM PlanExercises WHERE exercise_id = ? LIMIT 1;',
-      [id],
-    );
+    const planned = await this.orm
+      .select({ one: sql`1` })
+      .from(planExercises)
+      .where(eq(planExercises.exercise_id, id))
+      .limit(1)
+      .get();
     if (planned) return { blocked: true, reason: 'planned' };
 
-    await this.db.runAsync('DELETE FROM Exercises WHERE id = ?;', [id]);
+    await this.orm.delete(exercises).where(eq(exercises.id, id)).run();
     return { blocked: false };
   }
 
