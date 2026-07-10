@@ -1,8 +1,16 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { drizzle, type ExpoSQLiteDatabase } from 'drizzle-orm/expo-sqlite';
-import { getTableColumns, sql, eq, ne, asc } from 'drizzle-orm';
+import { getTableColumns, sql, eq, ne, asc, and, lt, gte, desc, inArray } from 'drizzle-orm';
 import * as schema from '@/core/database/schema';
-import { exercises, planDays, planExercises, plans, workoutLogs } from '@/core/database/schema';
+import {
+  exercises,
+  planDays,
+  planExercises,
+  plans,
+  workoutLogs,
+  workoutSets,
+  weeklyProgress,
+} from '@/core/database/schema';
 import type { IWorkoutRepository } from './IWorkoutRepository';
 import type {
   BodyWeightEntry,
@@ -23,7 +31,6 @@ import type {
   ResolvedImportPayload,
   WeeklyStats,
   WorkoutLog,
-  WorkoutLogRow,
   WorkoutLogWithExercise,
   WorkoutSetRow,
 } from '@/core/database/types';
@@ -435,10 +442,10 @@ export class WorkoutRepository implements IWorkoutRepository {
   }
 
   async createLog(exerciseId: number, timestamp: number, dayTag: string | null): Promise<number> {
-    const result = await this.db.runAsync(
-      'INSERT INTO WorkoutLogs (exercise_id, timestamp, day_tag) VALUES (?, ?, ?);',
-      [exerciseId, timestamp, dayTag],
-    );
+    const result = await this.orm
+      .insert(workoutLogs)
+      .values({ exercise_id: exerciseId, timestamp, day_tag: dayTag })
+      .run();
     return result.lastInsertRowId;
   }
 
@@ -490,10 +497,11 @@ export class WorkoutRepository implements IWorkoutRepository {
     rpe: number | null = null,
     note: string | null = null,
   ): Promise<void> {
-    await this.db.runAsync(
-      'UPDATE WorkoutSets SET reps = ?, weight = ?, rpe = ?, note = ? WHERE log_id = ? AND set_order = ?;',
-      [reps, weight, rpe, note, logId, setOrder],
-    );
+    await this.orm
+      .update(workoutSets)
+      .set({ reps, weight, rpe, note })
+      .where(and(eq(workoutSets.log_id, logId), eq(workoutSets.set_order, setOrder)))
+      .run();
   }
 
   /** Delete one logged set, compact ordering, and roll back its weekly count. Deletes the log if it's now empty. */
@@ -542,24 +550,29 @@ export class WorkoutRepository implements IWorkoutRepository {
   }
 
   async getWeeklyProgress(weekStart: number): Promise<Map<string, number>> {
-    const rows = await this.db.getAllAsync<{ exercise_id: number; day_tag: string; sets_done: number }>(
-      `SELECT exercise_id, day_tag, sets_done FROM WeeklyProgress WHERE week_start = ?;`,
-      [weekStart],
-    );
+    const rows = await this.orm
+      .select({
+        exercise_id: weeklyProgress.exercise_id,
+        day_tag: weeklyProgress.day_tag,
+        sets_done: weeklyProgress.sets_done,
+      })
+      .from(weeklyProgress)
+      .where(eq(weeklyProgress.week_start, weekStart));
     return new Map(rows.map((r) => [weeklyKey(r.exercise_id, r.day_tag || null), r.sets_done]));
   }
 
   async getWeeklyStats(weekStart: number): Promise<WeeklyStats> {
     const weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000;
-    const row = await this.db.getFirstAsync<{ volume_kg: number; total_sets: number; days_trained: number }>(
-      `SELECT COALESCE(SUM(ws.weight * ws.reps), 0) AS volume_kg,
-              COUNT(ws.id) AS total_sets,
-              COUNT(DISTINCT date(wl.timestamp / 1000, 'unixepoch', 'localtime')) AS days_trained
-       FROM WorkoutLogs wl
-       JOIN WorkoutSets ws ON ws.log_id = wl.id
-       WHERE wl.timestamp >= ? AND wl.timestamp < ?;`,
-      [weekStart, weekEnd],
-    );
+    const row = await this.orm
+      .select({
+        volume_kg: sql<number>`COALESCE(SUM(${workoutSets.weight} * ${workoutSets.reps}), 0)`,
+        total_sets: sql<number>`COUNT(${workoutSets.id})`,
+        days_trained: sql<number>`COUNT(DISTINCT date(${workoutLogs.timestamp} / 1000, 'unixepoch', 'localtime'))`,
+      })
+      .from(workoutLogs)
+      .innerJoin(workoutSets, eq(workoutSets.log_id, workoutLogs.id))
+      .where(and(gte(workoutLogs.timestamp, weekStart), lt(workoutLogs.timestamp, weekEnd)))
+      .get();
     return {
       volumeKg: row?.volume_kg ?? 0,
       totalSets: row?.total_sets ?? 0,
@@ -569,27 +582,37 @@ export class WorkoutRepository implements IWorkoutRepository {
 
   async getWeeklyMuscleVolume(weekStart: number): Promise<{ muscleGroup: string; volumeKg: number }[]> {
     const weekEnd = weekStart + 7 * 24 * 60 * 60 * 1000;
-    const rows = await this.db.getAllAsync<{ muscle_group: string; volume_kg: number }>(
-      `SELECT COALESCE(e.muscle_group, 'Other') AS muscle_group,
-              COALESCE(SUM(ws.weight * ws.reps), 0) AS volume_kg
-       FROM WorkoutLogs wl
-       JOIN WorkoutSets ws ON ws.log_id = wl.id
-       JOIN Exercises e ON e.id = wl.exercise_id
-       WHERE wl.timestamp >= ? AND wl.timestamp < ?
-       GROUP BY COALESCE(e.muscle_group, 'Other')
-       ORDER BY volume_kg DESC;`,
-      [weekStart, weekEnd],
-    );
+    const muscleGroupExpr = sql<string>`COALESCE(${exercises.muscle_group}, 'Other')`;
+    const volumeExpr = sql<number>`COALESCE(SUM(${workoutSets.weight} * ${workoutSets.reps}), 0)`;
+    const rows = await this.orm
+      .select({ muscle_group: muscleGroupExpr, volume_kg: volumeExpr })
+      .from(workoutLogs)
+      .innerJoin(workoutSets, eq(workoutSets.log_id, workoutLogs.id))
+      .innerJoin(exercises, eq(exercises.id, workoutLogs.exercise_id))
+      .where(and(gte(workoutLogs.timestamp, weekStart), lt(workoutLogs.timestamp, weekEnd)))
+      .groupBy(muscleGroupExpr)
+      .orderBy(desc(volumeExpr));
     return rows.map((r) => ({ muscleGroup: r.muscle_group, volumeKg: r.volume_kg }));
   }
 
   async getTodayLogId(exerciseId: number, dayTag: string | null): Promise<number | null> {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    const row = await this.db.getFirstAsync<{ id: number }>(
-      'SELECT id FROM WorkoutLogs WHERE exercise_id = ? AND timestamp >= ? AND day_tag IS ? ORDER BY timestamp DESC LIMIT 1;',
-      [exerciseId, startOfDay.getTime(), dayTag],
-    );
+    const row = await this.orm
+      .select({ id: workoutLogs.id })
+      .from(workoutLogs)
+      .where(
+        and(
+          eq(workoutLogs.exercise_id, exerciseId),
+          gte(workoutLogs.timestamp, startOfDay.getTime()),
+          // Null-safe match: IS distinguishes a real "no day tag" (NULL) from
+          // any tagged day, and also matches a specific tag when provided.
+          sql`${workoutLogs.day_tag} IS ${dayTag}`,
+        ),
+      )
+      .orderBy(desc(workoutLogs.timestamp))
+      .limit(1)
+      .get();
     return row?.id ?? null;
   }
 
@@ -598,30 +621,25 @@ export class WorkoutRepository implements IWorkoutRepository {
   async getHistory(exerciseId: number, options: PageOptions): Promise<WorkoutLog[]> {
     const { limit, beforeTimestamp } = options;
 
-    const logRows = beforeTimestamp
-      ? await this.db.getAllAsync<WorkoutLogRow>(
-          `SELECT * FROM WorkoutLogs
-           WHERE exercise_id = ? AND timestamp < ?
-           ORDER BY timestamp DESC LIMIT ?;`,
-          [exerciseId, beforeTimestamp, limit],
-        )
-      : await this.db.getAllAsync<WorkoutLogRow>(
-          `SELECT * FROM WorkoutLogs
-           WHERE exercise_id = ?
-           ORDER BY timestamp DESC LIMIT ?;`,
-          [exerciseId, limit],
-        );
+    const logRows = await this.orm
+      .select()
+      .from(workoutLogs)
+      .where(
+        beforeTimestamp
+          ? and(eq(workoutLogs.exercise_id, exerciseId), lt(workoutLogs.timestamp, beforeTimestamp))
+          : eq(workoutLogs.exercise_id, exerciseId),
+      )
+      .orderBy(desc(workoutLogs.timestamp))
+      .limit(limit);
 
     if (logRows.length === 0) return [];
 
     // Fetch all sets for this page in ONE query (avoids N+1).
-    const placeholders = logRows.map(() => '?').join(', ');
-    const setRows = await this.db.getAllAsync<WorkoutSetRow>(
-      `SELECT * FROM WorkoutSets
-       WHERE log_id IN (${placeholders})
-       ORDER BY log_id, set_order ASC;`,
-      logRows.map((l) => l.id),
-    );
+    const setRows = await this.orm
+      .select()
+      .from(workoutSets)
+      .where(inArray(workoutSets.log_id, logRows.map((l) => l.id)))
+      .orderBy(asc(workoutSets.log_id), asc(workoutSets.set_order));
 
     const setsByLog = new Map<number, WorkoutSetRow[]>();
     for (const s of setRows) {
@@ -648,34 +666,29 @@ export class WorkoutRepository implements IWorkoutRepository {
   async getAllHistory(options: PageOptions): Promise<WorkoutLogWithExercise[]> {
     const { limit, beforeTimestamp } = options;
 
-    type LogWithEx = WorkoutLogRow & { exercise_name: string; day_tag: string | null };
-
-    const logRows = beforeTimestamp
-      ? await this.db.getAllAsync<LogWithEx>(
-          `SELECT wl.id, wl.exercise_id, wl.timestamp, e.name AS exercise_name,
-                  COALESCE(wl.day_tag, ${WorkoutRepository.DAY_TAG_SQL}) AS day_tag
-           FROM WorkoutLogs wl
-           JOIN Exercises e ON e.id = wl.exercise_id
-           WHERE wl.timestamp < ?
-           ORDER BY wl.timestamp DESC LIMIT ?;`,
-          [beforeTimestamp, limit],
-        )
-      : await this.db.getAllAsync<LogWithEx>(
-          `SELECT wl.id, wl.exercise_id, wl.timestamp, e.name AS exercise_name,
-                  COALESCE(wl.day_tag, ${WorkoutRepository.DAY_TAG_SQL}) AS day_tag
-           FROM WorkoutLogs wl
-           JOIN Exercises e ON e.id = wl.exercise_id
-           ORDER BY wl.timestamp DESC LIMIT ?;`,
-          [limit],
-        );
+    const logRows = await this.orm
+      .select({
+        id: workoutLogs.id,
+        exercise_id: workoutLogs.exercise_id,
+        timestamp: workoutLogs.timestamp,
+        exercise_name: exercises.name,
+        // DAY_TAG_COLUMN correlates on "Exercises"."id"; the joined table is
+        // rendered as "Exercises", so the subquery resolves the active day here.
+        day_tag: sql<string | null>`COALESCE(${workoutLogs.day_tag}, ${WorkoutRepository.DAY_TAG_COLUMN})`,
+      })
+      .from(workoutLogs)
+      .innerJoin(exercises, eq(exercises.id, workoutLogs.exercise_id))
+      .where(beforeTimestamp ? lt(workoutLogs.timestamp, beforeTimestamp) : undefined)
+      .orderBy(desc(workoutLogs.timestamp))
+      .limit(limit);
 
     if (logRows.length === 0) return [];
 
-    const placeholders = logRows.map(() => '?').join(', ');
-    const setRows = await this.db.getAllAsync<WorkoutSetRow>(
-      `SELECT * FROM WorkoutSets WHERE log_id IN (${placeholders}) ORDER BY log_id, set_order ASC;`,
-      logRows.map((l) => l.id),
-    );
+    const setRows = await this.orm
+      .select()
+      .from(workoutSets)
+      .where(inArray(workoutSets.log_id, logRows.map((l) => l.id)))
+      .orderBy(asc(workoutSets.log_id), asc(workoutSets.set_order));
 
     const setsByLog = new Map<number, WorkoutSetRow[]>();
     for (const s of setRows) {

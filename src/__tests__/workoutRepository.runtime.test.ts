@@ -1,4 +1,12 @@
 import { makeRepo } from './helpers/realDb';
+import { weeklyKey } from '@/features/workout/utils/progress';
+
+// Fixed week window (2024-01-01 00:00 UTC) so date()/localtime bucketing is
+// deterministic. DAY0 and DAY1 sit ~2 days apart, so they land on distinct
+// local calendar days in any timezone while staying inside the 7-day window.
+const WEEK_START = 1704067200000;
+const DAY0 = WEEK_START + 60 * 60 * 1000;
+const DAY1 = WEEK_START + 48 * 60 * 60 * 1000;
 
 describe('WorkoutRepository (real SQLite) — exercise reads', () => {
   it('getAllExercises returns mapped domain objects ordered by name', async () => {
@@ -151,5 +159,111 @@ describe('WorkoutRepository (real SQLite) — exercise writes', () => {
     expect(await repo.deleteCustomExercise(3)).toEqual({ blocked: true, reason: 'planned' });
     expect(await repo.deleteCustomExercise(1)).toEqual({ blocked: false });
     expect(await repo.getExerciseById(1)).toBeNull();
+  });
+});
+
+describe('WorkoutRepository (real SQLite) — logging, stats & history', () => {
+  it('createLog inserts a log row and returns its id', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Squat');`);
+    const id = await repo.createLog(1, 5000, 'Legs');
+    expect(id).toBeGreaterThan(0);
+    const row = db.prepare('SELECT exercise_id, timestamp, day_tag FROM WorkoutLogs WHERE id = ?').get(id);
+    expect(row).toEqual({ exercise_id: 1, timestamp: 5000, day_tag: 'Legs' });
+  });
+
+  it('updateSet edits an existing set in place, matched by log_id + set_order', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Squat');`);
+    db.exec(`INSERT INTO WorkoutLogs (exercise_id, timestamp) VALUES (1, 5000);`);
+    db.exec(`INSERT INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (1, 0, 5, 100);`);
+    await repo.updateSet(1, 0, 8, 120, 7.5, 'harder');
+    const row = db.prepare('SELECT reps, weight, rpe, note FROM WorkoutSets WHERE log_id = 1 AND set_order = 0').get();
+    expect(row).toEqual({ reps: 8, weight: 120, rpe: 7.5, note: 'harder' });
+  });
+
+  it('getWeeklyProgress maps rows keyed by exercise + day tag', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('A'), ('B');`);
+    db.exec(`INSERT INTO WeeklyProgress (exercise_id, day_tag, week_start, sets_done)
+             VALUES (1, 'Push', 1000, 4), (2, '', 1000, 2);`);
+    const map = await repo.getWeeklyProgress(1000);
+    expect(map.get(weeklyKey(1, 'Push'))).toBe(4);
+    expect(map.get(weeklyKey(2, null))).toBe(2);
+    expect(await (await repo.getWeeklyProgress(9999)).size).toBe(0);
+  });
+
+  it('getWeeklyStats aggregates volume, set count, and distinct training days', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('A');`);
+    // two logs on distinct days within the week, one log outside it
+    db.exec(`INSERT INTO WorkoutLogs (exercise_id, timestamp) VALUES (1, ${DAY0}), (1, ${DAY1}), (1, ${WEEK_START - 1});`);
+    db.exec(`INSERT INTO WorkoutSets (log_id, set_order, reps, weight) VALUES
+             (1, 0, 5, 100), (1, 1, 5, 100), (2, 0, 10, 50), (3, 0, 5, 999);`);
+    const stats = await repo.getWeeklyStats(WEEK_START);
+    expect(stats.volumeKg).toBe(5 * 100 + 5 * 100 + 10 * 50);
+    expect(stats.totalSets).toBe(3);
+    expect(stats.daysTrained).toBe(2);
+  });
+
+  it('getWeeklyStats returns zeros when nothing logged in the window', async () => {
+    const { repo } = makeRepo();
+    expect(await repo.getWeeklyStats(WEEK_START)).toEqual({ volumeKg: 0, totalSets: 0, daysTrained: 0 });
+  });
+
+  it('getWeeklyMuscleVolume groups by muscle (Other for null) and orders by volume desc', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name, muscle_group) VALUES ('Bench', 'Chest'), ('Nameless', NULL);`);
+    db.exec(`INSERT INTO WorkoutLogs (exercise_id, timestamp) VALUES (1, ${DAY0}), (2, ${DAY0});`);
+    db.exec(`INSERT INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (1, 0, 10, 100), (2, 0, 10, 200);`);
+    const vol = await repo.getWeeklyMuscleVolume(WEEK_START);
+    expect(vol).toEqual([
+      { muscleGroup: 'Other', volumeKg: 2000 },
+      { muscleGroup: 'Chest', volumeKg: 1000 },
+    ]);
+  });
+
+  it('getTodayLogId finds today\'s log with a null-safe day tag match', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('A');`);
+    const today = Date.now();
+    db.exec(`INSERT INTO WorkoutLogs (exercise_id, timestamp, day_tag) VALUES
+             (1, ${today - 1000}, NULL), (1, ${today}, 'Push');`);
+    expect(await repo.getTodayLogId(1, 'Push')).toBe(2);
+    expect(await repo.getTodayLogId(1, null)).toBe(1);
+    expect(await repo.getTodayLogId(1, 'Pull')).toBeNull();
+  });
+
+  it('getHistory pages a single exercise newest-first with its sets attached', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Squat');`);
+    db.exec(`INSERT INTO WorkoutLogs (exercise_id, timestamp, day_tag) VALUES (1, 100, 'Legs'), (1, 200, 'Legs'), (1, 300, 'Legs');`);
+    db.exec(`INSERT INTO WorkoutSets (log_id, set_order, reps, weight, rpe, note) VALUES
+             (3, 0, 5, 140, 8, 'top'), (3, 1, 5, 140, NULL, NULL), (2, 0, 8, 100, NULL, NULL);`);
+    const page1 = await repo.getHistory(1, { limit: 2 });
+    expect(page1.map((l) => l.timestamp)).toEqual([300, 200]);
+    expect(page1[0].sets).toEqual([
+      { setOrder: 0, reps: 5, weight: 140, rpe: 8, note: 'top' },
+      { setOrder: 1, reps: 5, weight: 140, rpe: null, note: null },
+    ]);
+    const page2 = await repo.getHistory(1, { limit: 2, beforeTimestamp: 200 });
+    expect(page2.map((l) => l.timestamp)).toEqual([100]);
+  });
+
+  it('getAllHistory joins the exercise name and resolves the active plan day tag', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Row'), ('Curl');`);
+    // Row is on the active plan's "Pull" day; its log has no explicit tag.
+    db.exec(`INSERT INTO Plans (name, is_active, created_at) VALUES ('P', 1, 1);`);
+    db.exec(`INSERT INTO PlanDays (plan_id, name, sort_order) VALUES (1, 'Pull', 0);`);
+    db.exec(`INSERT INTO PlanExercises (plan_day_id, exercise_id, sort_order) VALUES (1, 1, 0);`);
+    db.exec(`INSERT INTO WorkoutLogs (exercise_id, timestamp, day_tag) VALUES (1, 100, NULL), (2, 200, 'Arms');`);
+    db.exec(`INSERT INTO WorkoutSets (log_id, set_order, reps, weight) VALUES (2, 0, 12, 20);`);
+    const all = await repo.getAllHistory({ limit: 10 });
+    expect(all.map((l) => [l.exerciseName, l.timestamp, l.dayTag])).toEqual([
+      ['Curl', 200, 'Arms'],
+      ['Row', 100, 'Pull'],
+    ]);
+    expect(all[0].sets).toEqual([{ setOrder: 0, reps: 12, weight: 20, rpe: null, note: null }]);
   });
 });
