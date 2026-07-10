@@ -10,6 +10,7 @@ import {
   workoutLogs,
   workoutSets,
   weeklyProgress,
+  bodyWeightLogs,
 } from '@/core/database/schema';
 import type { IWorkoutRepository } from './IWorkoutRepository';
 import type {
@@ -23,9 +24,7 @@ import type {
   PlanDay,
   PlanDetail,
   PlanDayDetail,
-  PlanDayRow,
   PlanExerciseDetail,
-  PlanExerciseRow,
   PlanRow,
   PageOptions,
   ResolvedImportPayload,
@@ -798,23 +797,24 @@ export class WorkoutRepository implements IWorkoutRepository {
   // ── Body weight ───────────────────────────────────────────────────────────
 
   async logBodyWeight(weightKg: number, timestamp: number): Promise<BodyWeightEntry> {
-    const result = await this.db.runAsync(
-      'INSERT INTO BodyWeightLogs (timestamp, weight_kg) VALUES (?, ?);',
-      [timestamp, weightKg],
-    );
+    const result = await this.orm
+      .insert(bodyWeightLogs)
+      .values({ timestamp, weight_kg: weightKg })
+      .run();
     return { id: result.lastInsertRowId, timestamp, weightKg };
   }
 
   async getBodyWeightHistory(limit: number): Promise<BodyWeightEntry[]> {
-    const rows = await this.db.getAllAsync<{ id: number; timestamp: number; weight_kg: number }>(
-      'SELECT * FROM BodyWeightLogs ORDER BY timestamp DESC LIMIT ?;',
-      [limit],
-    );
+    const rows = await this.orm
+      .select()
+      .from(bodyWeightLogs)
+      .orderBy(desc(bodyWeightLogs.timestamp))
+      .limit(limit);
     return rows.map((r) => ({ id: r.id, timestamp: r.timestamp, weightKg: r.weight_kg }));
   }
 
   async deleteBodyWeight(id: number): Promise<void> {
-    await this.db.runAsync('DELETE FROM BodyWeightLogs WHERE id = ?;', [id]);
+    await this.orm.delete(bodyWeightLogs).where(eq(bodyWeightLogs.id, id)).run();
   }
 
   // ── Reset ─────────────────────────────────────────────────────────────────
@@ -855,30 +855,39 @@ export class WorkoutRepository implements IWorkoutRepository {
   }
 
   async getPlans(): Promise<Plan[]> {
-    const rows = await this.db.getAllAsync<PlanRow>(
-      'SELECT * FROM Plans ORDER BY is_active DESC, name ASC;',
-    );
+    const rows = await this.orm
+      .select()
+      .from(plans)
+      .orderBy(desc(plans.is_active), asc(plans.name));
     return rows.map(WorkoutRepository.toPlan);
   }
 
   async getPlanDetail(planId: number): Promise<PlanDetail | null> {
-    const planRow = await this.db.getFirstAsync<PlanRow>('SELECT * FROM Plans WHERE id = ?;', [planId]);
+    const planRow = await this.orm.select().from(plans).where(eq(plans.id, planId)).get();
     if (!planRow) return null;
 
-    const dayRows = await this.db.getAllAsync<PlanDayRow>(
-      'SELECT * FROM PlanDays WHERE plan_id = ? ORDER BY sort_order ASC;',
-      [planId],
-    );
+    const dayRows = await this.orm
+      .select()
+      .from(planDays)
+      .where(eq(planDays.plan_id, planId))
+      .orderBy(asc(planDays.sort_order));
 
-    type ExRow = PlanExerciseRow & { exercise_name: string };
     const exRows = dayRows.length
-      ? await this.db.getAllAsync<ExRow>(
-          `SELECT pe.*, e.name AS exercise_name
-           FROM PlanExercises pe JOIN Exercises e ON e.id = pe.exercise_id
-           WHERE pe.plan_day_id IN (${dayRows.map(() => '?').join(', ')})
-           ORDER BY pe.plan_day_id ASC, pe.sort_order ASC;`,
-          dayRows.map((d) => d.id),
-        )
+      ? await this.orm
+          .select({
+            id: planExercises.id,
+            plan_day_id: planExercises.plan_day_id,
+            exercise_id: planExercises.exercise_id,
+            sort_order: planExercises.sort_order,
+            target_sets: planExercises.target_sets,
+            rep_min: planExercises.rep_min,
+            rep_max: planExercises.rep_max,
+            exercise_name: exercises.name,
+          })
+          .from(planExercises)
+          .innerJoin(exercises, eq(exercises.id, planExercises.exercise_id))
+          .where(inArray(planExercises.plan_day_id, dayRows.map((d) => d.id)))
+          .orderBy(asc(planExercises.plan_day_id), asc(planExercises.sort_order))
       : [];
 
     const exByDay = new Map<number, PlanExerciseDetail[]>();
@@ -929,7 +938,7 @@ export class WorkoutRepository implements IWorkoutRepository {
   }
 
   async renamePlan(planId: number, name: string): Promise<void> {
-    await this.db.runAsync('UPDATE Plans SET name = ? WHERE id = ?;', [name, planId]);
+    await this.orm.update(plans).set({ name }).where(eq(plans.id, planId)).run();
   }
 
   async deletePlan(planId: number): Promise<void> {
@@ -962,23 +971,24 @@ export class WorkoutRepository implements IWorkoutRepository {
   }
 
   async addPlanDay(planId: number, name: string): Promise<PlanDay> {
-    const { count } = (await this.db.getFirstAsync<{ count: number }>(
-      'SELECT COUNT(*) AS count FROM PlanDays WHERE plan_id = ?;',
-      [planId],
-    ))!;
-    const result = await this.db.runAsync(
-      'INSERT INTO PlanDays (plan_id, name, sort_order) VALUES (?, ?, ?);',
-      [planId, name, count],
-    );
+    const { count } = (await this.orm
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(planDays)
+      .where(eq(planDays.plan_id, planId))
+      .get())!;
+    const result = await this.orm
+      .insert(planDays)
+      .values({ plan_id: planId, name, sort_order: count })
+      .run();
     return { id: result.lastInsertRowId, planId, name, sortOrder: count };
   }
 
   async renamePlanDay(planDayId: number, name: string): Promise<void> {
-    await this.db.runAsync('UPDATE PlanDays SET name = ? WHERE id = ?;', [name, planDayId]);
+    await this.orm.update(planDays).set({ name }).where(eq(planDays.id, planDayId)).run();
   }
 
   async deletePlanDay(planDayId: number): Promise<void> {
-    await this.db.runAsync('DELETE FROM PlanDays WHERE id = ?;', [planDayId]);
+    await this.orm.delete(planDays).where(eq(planDays.id, planDayId)).run();
   }
 
   async addPlanExercise(
@@ -986,19 +996,27 @@ export class WorkoutRepository implements IWorkoutRepository {
     exerciseId: number,
     options: { targetSets: number; repMin?: number | null; repMax?: number | null },
   ): Promise<PlanExerciseDetail> {
-    const { count } = (await this.db.getFirstAsync<{ count: number }>(
-      'SELECT COUNT(*) AS count FROM PlanExercises WHERE plan_day_id = ?;',
-      [planDayId],
-    ))!;
-    const result = await this.db.runAsync(
-      `INSERT INTO PlanExercises (plan_day_id, exercise_id, sort_order, target_sets, rep_min, rep_max)
-       VALUES (?, ?, ?, ?, ?, ?);`,
-      [planDayId, exerciseId, count, options.targetSets, options.repMin ?? null, options.repMax ?? null],
-    );
-    const exercise = await this.db.getFirstAsync<{ name: string }>(
-      'SELECT name FROM Exercises WHERE id = ?;',
-      [exerciseId],
-    );
+    const { count } = (await this.orm
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(planExercises)
+      .where(eq(planExercises.plan_day_id, planDayId))
+      .get())!;
+    const result = await this.orm
+      .insert(planExercises)
+      .values({
+        plan_day_id: planDayId,
+        exercise_id: exerciseId,
+        sort_order: count,
+        target_sets: options.targetSets,
+        rep_min: options.repMin ?? null,
+        rep_max: options.repMax ?? null,
+      })
+      .run();
+    const exercise = await this.orm
+      .select({ name: exercises.name })
+      .from(exercises)
+      .where(eq(exercises.id, exerciseId))
+      .get();
     return {
       id: result.lastInsertRowId,
       exerciseId,
@@ -1015,13 +1033,13 @@ export class WorkoutRepository implements IWorkoutRepository {
     options: { targetSets?: number; repMin?: number | null; repMax?: number | null },
   ): Promise<void> {
     if (options.targetSets !== undefined) {
-      await this.db.runAsync('UPDATE PlanExercises SET target_sets = ? WHERE id = ?;', [options.targetSets, id]);
+      await this.orm.update(planExercises).set({ target_sets: options.targetSets }).where(eq(planExercises.id, id)).run();
     }
     if (options.repMin !== undefined) {
-      await this.db.runAsync('UPDATE PlanExercises SET rep_min = ? WHERE id = ?;', [options.repMin, id]);
+      await this.orm.update(planExercises).set({ rep_min: options.repMin }).where(eq(planExercises.id, id)).run();
     }
     if (options.repMax !== undefined) {
-      await this.db.runAsync('UPDATE PlanExercises SET rep_max = ? WHERE id = ?;', [options.repMax, id]);
+      await this.orm.update(planExercises).set({ rep_max: options.repMax }).where(eq(planExercises.id, id)).run();
     }
   }
 

@@ -267,3 +267,130 @@ describe('WorkoutRepository (real SQLite) — logging, stats & history', () => {
     expect(all[0].sets).toEqual([{ setOrder: 0, reps: 12, weight: 20, rpe: null, note: null }]);
   });
 });
+
+describe('WorkoutRepository (real SQLite) — body weight & plan reads', () => {
+  it('logBodyWeight inserts and returns the entry; history is newest-first with a limit', async () => {
+    const { repo } = makeRepo();
+    const first = await repo.logBodyWeight(80.5, 1000);
+    expect(first).toEqual({ id: first.id, timestamp: 1000, weightKg: 80.5 });
+    await repo.logBodyWeight(81, 2000);
+    await repo.logBodyWeight(79.2, 3000);
+    const history = await repo.getBodyWeightHistory(2);
+    expect(history).toEqual([
+      { id: 3, timestamp: 3000, weightKg: 79.2 },
+      { id: 2, timestamp: 2000, weightKg: 81 },
+    ]);
+  });
+
+  it('deleteBodyWeight removes only the target row', async () => {
+    const { repo } = makeRepo();
+    await repo.logBodyWeight(80, 1000);
+    await repo.logBodyWeight(81, 2000);
+    await repo.deleteBodyWeight(1);
+    const history = await repo.getBodyWeightHistory(10);
+    expect(history.map((e) => e.id)).toEqual([2]);
+  });
+
+  it('getPlans orders active plan first, then by name', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Plans (name, is_active, created_at) VALUES
+             ('Zeta', 0, 1), ('Alpha', 0, 2), ('Bravo', 1, 3);`);
+    const list = await repo.getPlans();
+    expect(list.map((p) => p.name)).toEqual(['Bravo', 'Alpha', 'Zeta']);
+    expect(list[0].isActive).toBe(true);
+  });
+
+  it('getPlanDetail assembles days and their exercises (with names) in order', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Squat'), ('Leg Curl');`);
+    db.exec(`INSERT INTO Plans (name, is_active, created_at) VALUES ('PPL', 1, 100);`);
+    db.exec(`INSERT INTO PlanDays (plan_id, name, sort_order) VALUES (1, 'Legs', 0), (1, 'Rest', 1);`);
+    db.exec(`INSERT INTO PlanExercises (plan_day_id, exercise_id, sort_order, target_sets, rep_min, rep_max)
+             VALUES (1, 1, 0, 5, 3, 5), (1, 2, 1, 3, 10, 15);`);
+    const detail = await repo.getPlanDetail(1);
+    expect(detail!.name).toBe('PPL');
+    expect(detail!.isActive).toBe(true);
+    expect(detail!.days.map((d) => d.name)).toEqual(['Legs', 'Rest']);
+    expect(detail!.days[0].exercises.map((e) => [e.exerciseName, e.sortOrder, e.targetSets, e.repMin, e.repMax])).toEqual([
+      ['Squat', 0, 5, 3, 5],
+      ['Leg Curl', 1, 3, 10, 15],
+    ]);
+    expect(detail!.days[1].exercises).toEqual([]);
+  });
+
+  it('getPlanDetail returns null for a missing plan', async () => {
+    const { repo } = makeRepo();
+    expect(await repo.getPlanDetail(999)).toBeNull();
+  });
+});
+
+describe('WorkoutRepository (real SQLite) — plan writes', () => {
+  it('renamePlan and renamePlanDay update the target name', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Plans (name, is_active, created_at) VALUES ('Old', 0, 1);`);
+    db.exec(`INSERT INTO PlanDays (plan_id, name, sort_order) VALUES (1, 'D1', 0);`);
+    await repo.renamePlan(1, 'New');
+    await repo.renamePlanDay(1, 'Legs');
+    expect(db.prepare('SELECT name FROM Plans WHERE id = 1').get()).toEqual({ name: 'New' });
+    expect(db.prepare('SELECT name FROM PlanDays WHERE id = 1').get()).toEqual({ name: 'Legs' });
+  });
+
+  it('addPlanDay appends with sort_order = current day count', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Plans (name, is_active, created_at) VALUES ('P', 1, 1);`);
+    const d0 = await repo.addPlanDay(1, 'Push');
+    const d1 = await repo.addPlanDay(1, 'Pull');
+    expect(d0).toEqual({ id: d0.id, planId: 1, name: 'Push', sortOrder: 0 });
+    expect(d1.sortOrder).toBe(1);
+  });
+
+  it('deletePlanDay removes the day (and cascades its exercises)', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Squat');`);
+    db.exec(`INSERT INTO Plans (name, is_active, created_at) VALUES ('P', 1, 1);`);
+    db.exec(`INSERT INTO PlanDays (plan_id, name, sort_order) VALUES (1, 'Legs', 0);`);
+    db.exec(`INSERT INTO PlanExercises (plan_day_id, exercise_id, sort_order) VALUES (1, 1, 0);`);
+    await repo.deletePlanDay(1);
+    expect(db.prepare('SELECT COUNT(*) AS c FROM PlanDays').get()).toEqual({ c: 0 });
+    expect(db.prepare('SELECT COUNT(*) AS c FROM PlanExercises').get()).toEqual({ c: 0 });
+  });
+
+  it('addPlanExercise appends with the exercise name and sort_order = current count', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Bench'), ('Fly');`);
+    db.exec(`INSERT INTO Plans (name, is_active, created_at) VALUES ('P', 1, 1);`);
+    db.exec(`INSERT INTO PlanDays (plan_id, name, sort_order) VALUES (1, 'Push', 0);`);
+    const first = await repo.addPlanExercise(1, 1, { targetSets: 4, repMin: 5, repMax: 8 });
+    expect(first).toEqual({
+      id: first.id,
+      exerciseId: 1,
+      exerciseName: 'Bench',
+      sortOrder: 0,
+      targetSets: 4,
+      repMin: 5,
+      repMax: 8,
+    });
+    const second = await repo.addPlanExercise(1, 2, { targetSets: 3 });
+    expect(second.sortOrder).toBe(1);
+    expect(second.exerciseName).toBe('Fly');
+    expect(second.repMin).toBeNull();
+    expect(second.repMax).toBeNull();
+  });
+
+  it('updatePlanExercise updates only the provided fields', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Bench');`);
+    db.exec(`INSERT INTO Plans (name, is_active, created_at) VALUES ('P', 1, 1);`);
+    db.exec(`INSERT INTO PlanDays (plan_id, name, sort_order) VALUES (1, 'Push', 0);`);
+    db.exec(`INSERT INTO PlanExercises (plan_day_id, exercise_id, sort_order, target_sets, rep_min, rep_max)
+             VALUES (1, 1, 0, 3, 8, 12);`);
+    await repo.updatePlanExercise(1, { targetSets: 5, repMax: 15 });
+    expect(db.prepare('SELECT target_sets, rep_min, rep_max FROM PlanExercises WHERE id = 1').get()).toEqual({
+      target_sets: 5,
+      rep_min: 8,
+      rep_max: 15,
+    });
+    await repo.updatePlanExercise(1, { repMin: null });
+    expect(db.prepare('SELECT rep_min FROM PlanExercises WHERE id = 1').get()).toEqual({ rep_min: null });
+  });
+});
