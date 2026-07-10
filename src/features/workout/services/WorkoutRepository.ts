@@ -1,4 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
+import { drizzle, type ExpoSQLiteDatabase } from 'drizzle-orm/expo-sqlite';
+import * as schema from '@/core/database/schema';
 import type { IWorkoutRepository } from './IWorkoutRepository';
 import type {
   BodyWeightEntry,
@@ -40,7 +42,15 @@ type ExerciseWithDay = ExerciseRow & {
  * All methods use the async API — no *Sync calls, no legacy callbacks.
  */
 export class WorkoutRepository implements IWorkoutRepository {
-  constructor(private readonly db: SQLiteDatabase) {}
+  // Drizzle wraps the SAME connection as `db` (shared underlying handle), so
+  // builder queries and the raw `db` handle interleave safely. Reads and
+  // single-statement writes go through `orm`; multi-statement transactions stay
+  // on the raw async `db` (see IWorkoutRepository / migration plan).
+  private readonly orm: ExpoSQLiteDatabase<typeof schema>;
+
+  constructor(private readonly db: SQLiteDatabase) {
+    this.orm = drizzle(db, { schema });
+  }
 
   // Correlated subquery that resolves the active plan's day name for an
   // exercise aliased "e" (an exercise can appear on only one day per plan).
