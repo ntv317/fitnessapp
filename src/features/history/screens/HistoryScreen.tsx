@@ -14,11 +14,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format, isToday, isYesterday } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
-import { weekStartOf } from '@/core/utils/date';
+import { weekStartOf, dateFnsLocale } from '@/core/utils/date';
 import { dayColorForTag } from '@/features/workout/utils/dayColor';
 import { useAllHistory, useDeleteLog } from '@/features/workout/hooks/useWorkoutLogs';
 import { useExercises } from '@/features/workout/hooks/useExercises';
+import { useExerciseDisplayName } from '@/features/library/hooks/useExerciseDisplayName';
 import { useUnit } from '@/core/context/UnitContext';
 import type { Exercise, WorkoutLogWithExercise } from '@/core/database/types';
 
@@ -30,11 +32,11 @@ type DateFilter =
   | { type: 'month' }
   | { type: 'custom'; year: number; month: number }; // month 0-11
 
-function dateFilterLabel(f: DateFilter): string {
-  if (f.type === 'all') return 'All time';
-  if (f.type === 'week') return 'This week';
-  if (f.type === 'month') return 'This month';
-  return format(new Date(f.year, f.month, 1), 'MMM yyyy');
+function dateFilterLabel(f: DateFilter, t: ReturnType<typeof useTranslation>['t']): string {
+  if (f.type === 'all') return t('history.allTime');
+  if (f.type === 'week') return t('history.thisWeek');
+  if (f.type === 'month') return t('history.thisMonth');
+  return format(new Date(f.year, f.month, 1), 'MMM yyyy', { locale: dateFnsLocale() });
 }
 
 function applyDateFilter(
@@ -62,11 +64,11 @@ function toLocalDateKey(ts: number): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function formatDateHeader(ts: number): string {
+function formatDateHeader(ts: number, t: ReturnType<typeof useTranslation>['t']): string {
   const d = new Date(ts);
-  if (isToday(d)) return 'Today';
-  if (isYesterday(d)) return 'Yesterday';
-  return format(d, 'MMM d · EEEE');
+  if (isToday(d)) return t('common.today');
+  if (isYesterday(d)) return t('dates.yesterday', { time: '' }).replace(', ', '').trim();
+  return format(d, 'MMM d · EEEE', { locale: dateFnsLocale() });
 }
 
 type HistoryWorkout = {
@@ -83,7 +85,7 @@ type HistoryDay = {
   workouts: HistoryWorkout[];
 };
 
-function groupLogs(logs: WorkoutLogWithExercise[]): HistoryDay[] {
+function groupLogs(logs: WorkoutLogWithExercise[], t: ReturnType<typeof useTranslation>['t']): HistoryDay[] {
   const dateMap = new Map<string, Map<string, WorkoutLogWithExercise[]>>();
   const sampleTs = new Map<string, number>();
 
@@ -103,7 +105,7 @@ function groupLogs(logs: WorkoutLogWithExercise[]): HistoryDay[] {
     .sort(([a], [b]) => b.localeCompare(a)) // YYYY-MM-DD → lexicographic desc = newest first
     .map(([dk, wm]) => ({
       dateKey: dk,
-      displayDate: formatDateHeader(sampleTs.get(dk)!),
+      displayDate: formatDateHeader(sampleTs.get(dk)!, t),
       sampleTs: sampleTs.get(dk)!,
       workouts: Array.from(wm.entries()).map(([tag, exercises]) => ({
         dayTag: tag,
@@ -127,6 +129,7 @@ function DateFilterModal({
   onSelect: (f: DateFilter) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
   const now = new Date();
   const [py, setPy] = useState(now.getFullYear());
   const [pm, setPm] = useState(now.getMonth());
@@ -163,10 +166,12 @@ function DateFilterModal({
     current.type === 'custom' && current.year === py && current.month === pm;
 
   const PRESETS: Array<{ label: string; filter: DateFilter }> = [
-    { label: 'All time', filter: { type: 'all' } },
-    { label: 'This week', filter: { type: 'week' } },
-    { label: 'This month', filter: { type: 'month' } },
+    { label: t('history.allTime'), filter: { type: 'all' } },
+    { label: t('history.thisWeek'), filter: { type: 'week' } },
+    { label: t('history.thisMonth'), filter: { type: 'month' } },
   ];
+
+  const monthStr = format(new Date(py, pm, 1), 'MMM yyyy', { locale: dateFnsLocale() });
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -178,7 +183,7 @@ function DateFilterModal({
         />
         <View style={ms.sheet}>
           <View style={ms.handle} />
-          <Text style={ms.title}>Filter by date</Text>
+          <Text style={ms.title}>{t('history.filterByDate')}</Text>
 
           <View style={ms.presetRow}>
             {PRESETS.map(({ label, filter }) => {
@@ -197,14 +202,14 @@ function DateFilterModal({
           </View>
 
           <View style={ms.divider} />
-          <Text style={ms.sectionLabel}>SPECIFIC MONTH</Text>
+          <Text style={ms.sectionLabel}>{t('history.specificMonth')}</Text>
 
           <View style={ms.stepper}>
             <TouchableOpacity style={ms.stepBtn} onPress={prevMonth} activeOpacity={0.7}>
               <Text style={ms.stepArrow}>‹</Text>
             </TouchableOpacity>
             <Text style={ms.stepMonth}>
-              {format(new Date(py, pm, 1), 'MMMM yyyy')}
+              {monthStr}
             </Text>
             <TouchableOpacity
               style={[ms.stepBtn, atCurrentMonth && ms.stepBtnDim]}
@@ -223,8 +228,8 @@ function DateFilterModal({
           >
             <Text style={[ms.useBtnText, customSelected && ms.useBtnTextOn]}>
               {customSelected
-                ? `Showing ${format(new Date(py, pm, 1), 'MMM yyyy')}`
-                : `Use ${format(new Date(py, pm, 1), 'MMM yyyy')}`}
+                ? t('history.showing', { month: monthStr })
+                : t('history.use', { month: monthStr })}
             </Text>
           </TouchableOpacity>
         </View>
@@ -250,6 +255,8 @@ function ExerciseFilterModal({
   onSelect: (id: number | null) => void;
   onClose: () => void;
 }) {
+  const { t } = useTranslation();
+  const exerciseDisplayName = useExerciseDisplayName();
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -259,16 +266,18 @@ function ExerciseFilterModal({
   const filtered = useMemo(
     () =>
       query.trim()
-        ? exercises.filter((e) =>
-            e.name.toLowerCase().includes(query.toLowerCase()),
+        ? exercises.filter(
+            (e) =>
+              e.name.toLowerCase().includes(query.toLowerCase()) ||
+              exerciseDisplayName(e).toLowerCase().includes(query.toLowerCase()),
           )
         : exercises,
-    [exercises, query],
+    [exercises, query, exerciseDisplayName],
   );
 
   const items: ExItem[] = [
-    { id: null, name: 'All exercises' },
-    ...filtered.map((e) => ({ id: e.id, name: e.name })),
+    { id: null, name: t('history.allExercises') },
+    ...filtered.map((e) => ({ id: e.id, name: exerciseDisplayName(e) })),
   ];
 
   function pick(id: number | null) {
@@ -282,11 +291,11 @@ function ExerciseFilterModal({
         <TouchableOpacity style={ms.backdrop} activeOpacity={1} onPress={onClose} />
         <View style={[ms.sheet, ms.sheetTall]}>
           <View style={ms.handle} />
-          <Text style={ms.title}>Filter by exercise</Text>
+          <Text style={ms.title}>{t('history.filterByExercise')}</Text>
 
           <TextInput
             style={ef.search}
-            placeholder="Search exercises…"
+            placeholder={t('history.searchExercises')}
             placeholderTextColor={Colors.textMuted}
             value={query}
             onChangeText={setQuery}
@@ -335,6 +344,7 @@ function FilterBar({
   onDatePress: () => void;
   onExercisePress: () => void;
 }) {
+  const { t } = useTranslation();
   const dateOn = dateFilter.type !== 'all';
   const exOn = exerciseId !== null;
 
@@ -346,7 +356,7 @@ function FilterBar({
         activeOpacity={0.7}
       >
         <Text style={[fb.label, dateOn && fb.labelOn]} numberOfLines={1}>
-          {dateFilterLabel(dateFilter)}
+          {dateFilterLabel(dateFilter, t)}
         </Text>
         <Text style={[fb.chevron, dateOn && fb.chevronOn]}>▾</Text>
       </TouchableOpacity>
@@ -357,7 +367,7 @@ function FilterBar({
         activeOpacity={0.7}
       >
         <Text style={[fb.label, exOn && fb.labelOn]} numberOfLines={1}>
-          {exOn && exerciseName ? exerciseName : 'All exercises'}
+          {exOn && exerciseName ? exerciseName : t('history.allExercises')}
         </Text>
         <Text style={[fb.chevron, exOn && fb.chevronOn]}>▾</Text>
       </TouchableOpacity>
@@ -369,13 +379,16 @@ function FilterBar({
 
 function ExerciseRow({
   log,
+  name,
   color,
   onDelete,
 }: {
   log: WorkoutLogWithExercise;
+  name: string;
   color: string;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const { display, label: unit } = useUnit();
   if (log.sets.length === 0) return null;
 
@@ -390,7 +403,7 @@ function ExerciseRow({
       <View style={[er.accent, { backgroundColor: color + '60' }]} />
       <View style={er.body}>
         <View style={er.nameRow}>
-          <Text style={er.name} numberOfLines={1}>{log.exerciseName}</Text>
+          <Text style={er.name} numberOfLines={1}>{name}</Text>
           <TouchableOpacity
             onPress={onDelete}
             hitSlop={{ top: 8, bottom: 8, left: 12, right: 4 }}
@@ -399,13 +412,13 @@ function ExerciseRow({
           </TouchableOpacity>
         </View>
         <View style={er.chips}>
-          <StatChip label={`${log.sets.length} sets`} />
+          <StatChip label={t('history.sets', { count: log.sets.length })} />
           <StatChip
             label={`${display(topSet.weight)} ${unit} × ${topSet.reps}`}
             accent
             color={color}
           />
-          <StatChip label={`${display(totalVolume)} ${unit} vol`} />
+          <StatChip label={t('history.vol', { value: display(totalVolume), unit })} />
         </View>
       </View>
     </View>
@@ -448,6 +461,7 @@ function StatChip({
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { data: logs = [], isLoading } = useAllHistory();
   const { data: exercises = [] } = useExercises();
   const { mutate: deleteLog } = useDeleteLog();
@@ -469,12 +483,17 @@ export default function HistoryScreen() {
   const [showDateModal, setShowDateModal] = useState(false);
   const [showExModal, setShowExModal] = useState(false);
 
-  const exerciseName = useMemo(
-    () =>
-      exerciseId !== null
-        ? exercises.find((e) => e.id === exerciseId)?.name ?? null
-        : null,
-    [exerciseId, exercises],
+  const exerciseDisplayName = useExerciseDisplayName();
+
+  const exerciseName = useMemo(() => {
+    if (exerciseId === null) return null;
+    const ex = exercises.find((e) => e.id === exerciseId);
+    return ex ? exerciseDisplayName(ex) : null;
+  }, [exerciseId, exercises, exerciseDisplayName]);
+
+  const exerciseById = useMemo(
+    () => new Map(exercises.map((e) => [e.id, e])),
+    [exercises],
   );
 
   const filteredLogs = useMemo(() => {
@@ -483,7 +502,7 @@ export default function HistoryScreen() {
     return applyDateFilter(result, dateFilter);
   }, [logs, exerciseId, dateFilter]);
 
-  const grouped = useMemo(() => groupLogs(filteredLogs), [filteredLogs]);
+  const grouped = useMemo(() => groupLogs(filteredLogs, t), [filteredLogs, t]);
 
   const toggleDate = (key: string) =>
     setExpandedDates((prev) => {
@@ -500,9 +519,9 @@ export default function HistoryScreen() {
     });
 
   const handleDelete = (logId: number) => {
-    Alert.alert('Delete log?', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteLog(logId) },
+    Alert.alert(t('history.deleteLog'), t('history.deleteLogBody'), [
+      { text: t('common.cancel'), style: 'cancel' },
+      { text: t('history.delete'), style: 'destructive', onPress: () => deleteLog(logId) },
     ]);
   };
 
@@ -512,12 +531,12 @@ export default function HistoryScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} style={s.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={s.title}>History</Text>
+        <Text style={s.title}>{t('history.title')}</Text>
         {logs.length > 0 && (
           <Text style={s.sub}>
             {filteredLogs.length !== logs.length
-              ? `${filteredLogs.length} of ${logs.length} sessions`
-              : `${logs.length} sessions logged`}
+              ? t('history.sessionCountFiltered', { filtered: filteredLogs.length, total: logs.length })
+              : t('history.sessionCount', { count: logs.length })}
           </Text>
         )}
       </View>
@@ -532,15 +551,15 @@ export default function HistoryScreen() {
 
       {isLoading ? (
         <View style={s.center}>
-          <Text style={s.muted}>Loading…</Text>
+          <Text style={s.muted}>{t('history.loading')}</Text>
         </View>
       ) : grouped.length === 0 ? (
         <View style={s.center}>
-          <Text style={s.emptyTitle}>No workouts found</Text>
+          <Text style={s.emptyTitle}>{t('history.noWorkoutsFound')}</Text>
           <Text style={s.muted}>
             {logs.length > 0
-              ? 'Try adjusting the filters above.'
-              : 'Complete a workout to see history here.'}
+              ? t('history.tryAdjusting')
+              : t('history.noWorkoutsBody')}
           </Text>
         </View>
       ) : (
@@ -560,7 +579,7 @@ export default function HistoryScreen() {
                     <Text style={s.dateLabel}>{day.displayDate}</Text>
                     <Text style={s.dateSub}>
                       {day.workouts.map((w) => w.dayTag).join(' · ')}
-                      {'  ·  '}{totalEx} exercises
+                      {'  ·  '}{t('history.exerciseCount', { count: totalEx })}
                     </Text>
                   </View>
                   <Text style={s.chevron}>{dateOpen ? '▲' : '▼'}</Text>
@@ -594,7 +613,7 @@ export default function HistoryScreen() {
                               {workout.dayTag}
                             </Text>
                             <Text style={s.workoutMeta}>
-                              {workout.exercises.length} exercises
+                              {t('history.exerciseCount', { count: workout.exercises.length })}
                             </Text>
                           </View>
                           <Text style={[s.chevron, { color: workout.color }]}>
@@ -603,14 +622,18 @@ export default function HistoryScreen() {
                         </TouchableOpacity>
 
                         {wkOpen &&
-                          workout.exercises.map((log) => (
-                            <ExerciseRow
-                              key={log.id}
-                              log={log}
-                              color={workout.color}
-                              onDelete={() => handleDelete(log.id)}
-                            />
-                          ))}
+                          workout.exercises.map((log) => {
+                            const ex = exerciseById.get(log.exerciseId);
+                            return (
+                              <ExerciseRow
+                                key={log.id}
+                                log={log}
+                                name={ex ? exerciseDisplayName(ex) : log.exerciseName}
+                                color={workout.color}
+                                onDelete={() => handleDelete(log.id)}
+                              />
+                            );
+                          })}
                       </View>
                     );
                   })}

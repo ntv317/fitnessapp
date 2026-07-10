@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, Fonts } from '@/core/theme';
 
 type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
@@ -7,6 +8,8 @@ type IoniconsName = React.ComponentProps<typeof Ionicons>['name'];
 const TAB_ICON_SIZE = 22;
 
 export default function TabLayout() {
+  const { t } = useTranslation();
+
   return (
     <Tabs
       screenOptions={{
@@ -27,7 +30,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="exercises"
         options={{
-          title: 'Exercises',
+          title: t('tabs.exercises'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={(focused ? 'body' : 'body-outline') as IoniconsName}
@@ -40,7 +43,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="plans"
         options={{
-          title: 'Plans',
+          title: t('tabs.plans'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={(focused ? 'calendar' : 'calendar-outline') as IoniconsName}
@@ -53,7 +56,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Log',
+          title: t('tabs.log'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={(focused ? 'barbell' : 'barbell-outline') as IoniconsName}
@@ -66,7 +69,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={(focused ? 'person' : 'person-outline') as IoniconsName}

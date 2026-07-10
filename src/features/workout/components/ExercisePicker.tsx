@@ -9,8 +9,10 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import type { Exercise } from '@/core/database/types';
+import { useExerciseDisplayName } from '@/features/library/hooks/useExerciseDisplayName';
 
 interface Props {
   exercises: Exercise[];
@@ -19,18 +21,22 @@ interface Props {
 }
 
 export function ExercisePicker({ exercises, selected, onSelect }: Props) {
+  const { t } = useTranslation();
+  const exerciseDisplayName = useExerciseDisplayName();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
 
-  const filtered = exercises.filter((e) =>
-    e.name.toLowerCase().includes(query.toLowerCase()),
+  const filtered = exercises.filter(
+    (e) =>
+      e.name.toLowerCase().includes(query.toLowerCase()) ||
+      exerciseDisplayName(e).toLowerCase().includes(query.toLowerCase()),
   );
 
   return (
     <>
       <TouchableOpacity style={styles.trigger} onPress={() => setOpen(true)}>
         <Text style={selected ? styles.triggerText : styles.placeholder}>
-          {selected?.name ?? 'Select exercise…'}
+          {selected ? exerciseDisplayName(selected) : t('workout.selectExercise')}
         </Text>
         <Text style={styles.chevron}>›</Text>
       </TouchableOpacity>
@@ -38,15 +44,15 @@ export function ExercisePicker({ exercises, selected, onSelect }: Props) {
       <Modal visible={open} animationType="slide" presentationStyle="pageSheet">
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>Choose Exercise</Text>
+            <Text style={styles.title}>{t('workout.chooseExercise')}</Text>
             <TouchableOpacity onPress={() => setOpen(false)}>
-              <Text style={styles.close}>Done</Text>
+              <Text style={styles.close}>{t('workout.done')}</Text>
             </TouchableOpacity>
           </View>
 
           <TextInput
             style={styles.search}
-            placeholder="Search…"
+            placeholder={t('workout.search')}
             placeholderTextColor={Colors.textMuted}
             value={query}
             onChangeText={setQuery}
@@ -65,8 +71,8 @@ export function ExercisePicker({ exercises, selected, onSelect }: Props) {
                   setQuery('');
                 }}
               >
-                <Text style={styles.itemName}>{item.name}</Text>
-                {item.isCompound && <Text style={styles.badge}>Compound</Text>}
+                <Text style={styles.itemName}>{exerciseDisplayName(item)}</Text>
+                {item.isCompound && <Text style={styles.badge}>{t('workout.compound')}</Text>}
               </Pressable>
             )}
             ItemSeparatorComponent={() => <View style={styles.separator} />}

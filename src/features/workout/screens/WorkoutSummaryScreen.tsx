@@ -4,20 +4,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, Radius, Fonts, FontSize } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
 import { usePremium } from '@/core/context/PremiumContext';
 import { getSession, clearSession } from '../utils/workoutSession';
 import { formatWeight } from '@/core/utils/format';
+import { useExercises } from '@/features/workout/hooks/useExercises';
+import { useExerciseDisplayName } from '@/features/library/hooks/useExerciseDisplayName';
 
-const HEADLINES = ['Day done.', 'Strong.', 'Work in.', 'Keep going.', 'One more done.'];
+const HEADLINE_COUNT = 5;
 
 const WORKOUT_COUNT_KEY = '@fitness/completedWorkouts';
 const PRO_PROMPT_SHOWN_KEY = '@fitness/proMilestonePromptShown';
 const PRO_PROMPT_THRESHOLD = 10;
 
 export default function WorkoutSummaryScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ startTime?: string; color?: string; day?: string }>();
   const { unit, fromKg } = useUnit();
@@ -27,11 +31,21 @@ export default function WorkoutSummaryScreen() {
   const accent = params.color || Colors.primary;
   const session = getSession();
 
+  const { data: exercises = [] } = useExercises();
+  const exerciseDisplayName = useExerciseDisplayName();
+  // Session results carry the stored (English) name as identity — map back to
+  // the exercise row for the localized display name.
+  const localizedName = (name: string) => {
+    const ex = exercises.find((e) => e.name === name);
+    return ex ? exerciseDisplayName(ex) : name;
+  };
+
   const durationMins = Math.max(1, Math.round((endTime - startTime) / 60000));
   const totalVolumeKg = session?.exercises.reduce((s, e) => s + e.volumeKg, 0) ?? 0;
   const exerciseCount = session?.exercises.length ?? 0;
-  const prNames = session?.exercises.filter((e) => e.isPR).map((e) => e.name) ?? [];
-  const [headline] = useState(() => HEADLINES[Math.floor(Math.random() * HEADLINES.length)]);
+  const prNames = session?.exercises.filter((e) => e.isPR).map((e) => localizedName(e.name)) ?? [];
+  const [headlineIdx] = useState(() => Math.floor(Math.random() * HEADLINE_COUNT));
+  const headline = t(`workout.headline${headlineIdx + 1}`);
   const { isPro } = usePremium();
 
   useEffect(() => {
@@ -43,11 +57,11 @@ export default function WorkoutSummaryScreen() {
         if (await AsyncStorage.getItem(PRO_PROMPT_SHOWN_KEY)) return;
         await AsyncStorage.setItem(PRO_PROMPT_SHOWN_KEY, 'true');
         Alert.alert(
-          `${count} workouts logged`,
-          'Back them up to iCloud so you never lose a PR?',
+          t('workout.backupPromptTitle', { count }),
+          t('workout.backupPromptBody'),
           [
-            { text: 'Not now', style: 'cancel' },
-            { text: 'See LIFTREPS Pro', onPress: () => router.push('/paywall' as never) },
+            { text: t('workout.notNow'), style: 'cancel' },
+            { text: t('workout.seeProLabel'), onPress: () => router.push('/paywall' as never) },
           ],
         );
       } catch {}
@@ -72,7 +86,7 @@ export default function WorkoutSummaryScreen() {
           <AppText style={[styles.headline, { color: accent }]}>{headline}</AppText>
           {params.day ? (
             <AppText variant="labelMono" upper color={Colors.textSecondary}>
-              Day {params.day} Complete
+              {t('workout.dayComplete', { day: params.day })}
             </AppText>
           ) : null}
         </View>
@@ -82,7 +96,7 @@ export default function WorkoutSummaryScreen() {
           <View style={[styles.prHero, { borderColor: accent }]}>
             <Ionicons name="trophy" size={28} color={accent} />
             <AppText variant="headlineMd" style={{ color: accent }}>
-              New PR{prNames.length > 1 ? 's' : ''}
+              {t(`workout.newPR_${prNames.length > 1 ? 'other' : 'one'}`)}
             </AppText>
             <AppText variant="bodyMd" color={Colors.textSecondary} center>
               {prNames.join(' · ')}
@@ -92,29 +106,29 @@ export default function WorkoutSummaryScreen() {
 
         {/* Stats card */}
         <View style={styles.statsCard}>
-          <StatCol label="Duration" value={`${durationMins}m`} />
+          <StatCol label={t('workout.duration')} value={`${durationMins}m`} />
           <View style={styles.statDivider} />
           <StatCol
-            label="Volume"
+            label={t('workout.volume')}
             value={formatWeight(fromKg(totalVolumeKg))}
             unit={unit}
           />
           <View style={styles.statDivider} />
-          <StatCol label="Exercises" value={String(exerciseCount)} />
+          <StatCol label={t('workout.exercises')} value={String(exerciseCount)} />
         </View>
 
         {/* PR list */}
         {prNames.length > 0 && (
           <View style={styles.section}>
             <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.sectionLabel}>
-              Personal Records
+              {t('workout.personalRecords')}
             </AppText>
             {prNames.map((name) => (
               <View key={name} style={styles.prRow}>
                 <View style={[styles.prDot, { backgroundColor: accent }]} />
                 <AppText variant="bodyMd" color={Colors.textPrimary}>{name}</AppText>
                 <View style={[styles.prBadge, { backgroundColor: accent }]}>
-                  <AppText style={styles.prBadgeText}>PR</AppText>
+                  <AppText style={styles.prBadgeText}>{t('workout.pr')}</AppText>
                 </View>
               </View>
             ))}
@@ -125,14 +139,14 @@ export default function WorkoutSummaryScreen() {
         {(session?.exercises ?? []).length > 0 && (
           <View style={styles.section}>
             <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.sectionLabel}>
-              Exercises
+              {t('workout.exercises')}
             </AppText>
             {session!.exercises.map((ex, i) => (
               <View key={i} style={styles.exRow}>
                 <AppText variant="bodyMd" color={Colors.textSecondary} style={styles.exNum}>
                   {i + 1}
                 </AppText>
-                <AppText variant="bodyMd" style={{ flex: 1 }}>{ex.name}</AppText>
+                <AppText variant="bodyMd" style={{ flex: 1 }}>{localizedName(ex.name)}</AppText>
                 <AppText variant="labelMono" color={Colors.textMuted}>
                   {formatWeight(fromKg(ex.volumeKg))} {unit}
                 </AppText>
@@ -150,12 +164,12 @@ export default function WorkoutSummaryScreen() {
           activeOpacity={0.85}
         >
           <AppText variant="bodyMd" color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>
-            Done
+            {t('workout.done')}
           </AppText>
         </TouchableOpacity>
         <TouchableOpacity style={styles.shareBtn} disabled>
           <Ionicons name="share-outline" size={18} color={Colors.textMuted} />
-          <AppText variant="labelMono" color={Colors.textMuted}>Share</AppText>
+          <AppText variant="labelMono" color={Colors.textMuted}>{t('common.share')}</AppText>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

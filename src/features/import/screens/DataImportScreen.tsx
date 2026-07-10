@@ -13,11 +13,13 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { ImportService } from '../services/ImportService';
 import { useRepository } from '@/features/workout/hooks/useRepository';
 import { useQueryClient } from '@tanstack/react-query';
 import { EXERCISES_KEY } from '@/features/workout/hooks/useExercises';
+import { currentLanguage } from '@/core/i18n';
 
 const AI_PROMPT = `Create a weekly workout plan for me and output it as JSON only — no explanation, no markdown, no code fences.
 
@@ -42,12 +44,28 @@ Rules:
 Exercise names — this matters for matching to the built-in exercise library:
 - Write the FULL standard name and lead with the equipment: "Barbell Bench Press", "Dumbbell Incline Press", "Cable Rope Triceps Pushdown", "Barbell Romanian Deadlift", "Machine Leg Press".
 - Do NOT abbreviate. Write "Dumbbell" not "DB", "Barbell" not "BB", "Overhead Press" not "OHP", "Romanian Deadlift" not "RDL".
-- Prefer well-known names from standard exercise databases over gym slang.
+- Prefer well-known names from standard exercise databases over gym slang.`;
 
-My goal: [REPLACE — e.g. "build muscle, 4 days/week, intermediate"]`;
+const PROMPT_LANGUAGE_NAMES: Record<string, string> = {
+  vi: 'Vietnamese',
+  th: 'Thai',
+  ru: 'Russian',
+};
+
+// Exercise names and muscleGroup values must stay English — they are canonical
+// keys matched against the bundled catalog (and localized at display time).
+// Only the day labels the user reads are asked for in their app language.
+function buildAiPrompt(): string {
+  const language = PROMPT_LANGUAGE_NAMES[currentLanguage()];
+  const languageRule = language
+    ? `\n\nLanguage: I use the app in ${language}. Write the "day" values in ${language}, but keep every exercise "name" in English exactly as specified above, and keep muscleGroup values exactly as listed. My goal below may be written in ${language}.`
+    : '';
+  return `${AI_PROMPT}${languageRule}\n\nMy goal: [REPLACE — e.g. "build muscle, 4 days/week, intermediate"]`;
+}
 
 export default function DataImportScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const repo = useRepository();
   const qc = useQueryClient();
   const service = React.useMemo(() => new ImportService(repo), [repo]);
@@ -59,7 +77,7 @@ export default function DataImportScreen() {
 
   const copyPrompt = useCallback(async () => {
     try {
-      await Share.share({ message: AI_PROMPT });
+      await Share.share({ message: buildAiPrompt() });
     } catch {
       // user dismissed share sheet — not an error
     }
@@ -73,7 +91,7 @@ export default function DataImportScreen() {
     const result = await service.importJSON(json);
     if (result.ok) {
       setStatus('ok');
-      setMessage(`✓ Plan imported & set active — ${result.days} days · ${result.exercises} exercises`);
+      setMessage(t('import.successMessage', { days: result.days, exercises: result.exercises }));
       setJson('');
       qc.invalidateQueries({ queryKey: EXERCISES_KEY });
       // The import lands as a new active plan — the Plans tab must refetch too.
@@ -92,20 +110,20 @@ export default function DataImportScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
 
-        <Text style={styles.title}>Plan with AI</Text>
+        <Text style={styles.title}>{t('import.title')}</Text>
 
         <Text style={styles.sub}>
-          Imports a weekly plan and sets it active. Re-importing is safe — each import lands as its own plan, and your logged history is never touched.
+          {t('import.description')}
         </Text>
 
         {/* Step 1 */}
         <View style={styles.step}>
           <View style={styles.stepHeader}>
             <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>1</Text></View>
-            <Text style={styles.stepTitle}>Copy the prompt</Text>
+            <Text style={styles.stepTitle}>{t('import.step1Title')}</Text>
           </View>
           <Text style={styles.stepDesc}>
-            Paste into ChatGPT or Claude and replace the goal at the bottom.
+            {t('import.step1Desc')}
           </Text>
           <View style={styles.codeBox}>
             <Text style={styles.codeText} numberOfLines={8}>{AI_PROMPT}</Text>
@@ -118,7 +136,7 @@ export default function DataImportScreen() {
               style={{ marginRight: 6 }}
             />
             <Text style={styles.primaryBtnText}>
-              {copied ? 'Shared!' : 'Share Prompt'}
+              {copied ? t('import.shared') : t('import.sharePrompt')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -127,10 +145,10 @@ export default function DataImportScreen() {
         <View style={styles.step}>
           <View style={styles.stepHeader}>
             <View style={styles.stepBadge}><Text style={styles.stepBadgeText}>2</Text></View>
-            <Text style={styles.stepTitle}>Paste the JSON response</Text>
+            <Text style={styles.stepTitle}>{t('import.step2Title')}</Text>
           </View>
           <Text style={styles.stepDesc}>
-            The AI will return all workout days at once — paste the full JSON below.
+            {t('import.step2Desc')}
           </Text>
 
           {status === 'ok' && (
@@ -147,7 +165,7 @@ export default function DataImportScreen() {
           <TextInput
             style={styles.input}
             multiline
-            placeholder={'[\n  { "day": "PUSH", "exercises": [...] },\n  { "day": "PULL", "exercises": [...] }\n]'}
+            placeholder={t('import.jsonPlaceholder')}
             placeholderTextColor={Colors.textMuted}
             value={json}
             onChangeText={(v) => { setJson(v); setStatus('idle'); }}
@@ -165,7 +183,7 @@ export default function DataImportScreen() {
           {status === 'loading' ? (
             <ActivityIndicator color={Colors.white} />
           ) : (
-            <Text style={styles.importBtnText}>Import Weekly Plan</Text>
+            <Text style={styles.importBtnText}>{t('import.importButton')}</Text>
           )}
         </TouchableOpacity>
 

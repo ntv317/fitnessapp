@@ -3,6 +3,9 @@ import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
+import { useExerciseDisplayName } from '@/features/library/hooks/useExerciseDisplayName';
 import { Colors, Spacing, Fonts } from '@/core/theme';
 import { dayColorForTag } from '../utils/dayColor';
 import { useAllDays } from '../hooks/useExercises';
@@ -19,7 +22,7 @@ const MARGIN = 20; // margin-mobile
 
 function musclesForExercises(exercises: Exercise[]): string {
   const withCatalog = exercises.filter((ex) => ex.catalogId);
-  if (withCatalog.length === 0) return 'Custom';
+  if (withCatalog.length === 0) return i18n.t('workout.custom');
   // Deferred require: a top-level import here would pull in the ~0.8MB
   // catalog JSON on every Log tab render, even for a plan with no
   // catalog-linked exercises (or no plan at all yet). Only load it once a
@@ -33,7 +36,9 @@ function musclesForExercises(exercises: Exercise[]): string {
     const group = groupOf(cat.primaryMuscles);
     if (group) groups.add(group);
   }
-  return groups.size > 0 ? Array.from(groups).join(' / ') : 'Custom';
+  return groups.size > 0
+    ? Array.from(groups).map((g) => i18n.t(`muscleGroups.${g}`)).join(' / ')
+    : i18n.t('workout.custom');
 }
 
 function estMinutes(exerciseCount: number): number {
@@ -55,6 +60,8 @@ function ExerciseRow({
   target: number;
   onPress: () => void;
 }) {
+  const { t } = useTranslation();
+  const exerciseDisplayName = useExerciseDisplayName();
   const pct = target > 0 ? done / target : 0;
   const complete = target > 0 && done >= target;
   const range = formatRepRange(exercise.repMin, exercise.repMax);
@@ -62,13 +69,13 @@ function ExerciseRow({
     <TouchableOpacity style={styles.exRow} onPress={onPress} activeOpacity={0.6}>
       <View style={[styles.exDot, { backgroundColor: color }]} />
       <View style={{ flex: 1 }}>
-        <AppText variant="bodyLg">{exercise.name}</AppText>
+        <AppText variant="bodyLg">{exerciseDisplayName(exercise)}</AppText>
         <View style={styles.exMetaRow}>
           <AppText variant="labelMono" upper color={Colors.textMuted}>
-            {exercise.isCompound ? 'Compound' : 'Isolation'}{range ? ` · ${range}` : ''}
+            {exercise.isCompound ? t('workout.compound') : t('workout.isolation')}{range ? ` · ${range}` : ''}
           </AppText>
           <AppText variant="labelMono" upper color={complete ? color : Colors.textMuted}>
-            {complete ? 'Done' : `${done}/${target} Sets`}
+            {complete ? t('workout.done') : t('workout.setsOfTotal', { done, total: target })}
           </AppText>
         </View>
         <View style={styles.exTrack}>
@@ -101,6 +108,7 @@ function DayCard({
   loggedMap: Map<string, number>;
   onOpenExercise: (ex: Exercise) => void;
 }) {
+  const { t } = useTranslation();
   const color = dayColorForTag(dayTag);
   const exCount = exercises.length;
   const { done, total, pct, complete } = progress;
@@ -123,20 +131,20 @@ function DayCard({
       <View style={styles.metaRow}>
         <View style={styles.metaItem}>
           <Ionicons name="barbell-outline" size={16} color={Colors.textSecondary} />
-          <AppText variant="bodyMd" color={Colors.textSecondary}>{exCount} Exercises</AppText>
+          <AppText variant="bodyMd" color={Colors.textSecondary}>{t('workout.exerciseCount', { count: exCount })}</AppText>
         </View>
         <View style={styles.metaItem}>
           <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
-          <AppText variant="bodyMd" color={Colors.textSecondary}>{estMinutes(exCount)} Min</AppText>
+          <AppText variant="bodyMd" color={Colors.textSecondary}>{estMinutes(exCount)} {t('workout.min')}</AppText>
         </View>
       </View>
 
       {/* This week's progress */}
       <View style={styles.progressBlock}>
         <View style={styles.progressLabelRow}>
-          <AppText variant="labelMono" upper color={Colors.textSecondary}>This Week</AppText>
+          <AppText variant="labelMono" upper color={Colors.textSecondary}>{t('workout.thisWeek')}</AppText>
           <AppText variant="labelMono" upper color={color}>
-            {complete ? 'Complete' : `${done}/${total} Sets`}
+            {complete ? t('workout.complete') : t('workout.setsOfTotal', { done, total })}
           </AppText>
         </View>
         <View style={styles.progressTrack}>
@@ -146,15 +154,15 @@ function DayCard({
         {/* Last week indicator — only shown if the user trained that day last week */}
         {lastWeekProgress.total > 0 && (
           <View style={styles.lastWeekRow}>
-            <AppText variant="labelMono" upper color={Colors.textMuted}>Last Week</AppText>
+            <AppText variant="labelMono" upper color={Colors.textMuted}>{t('workout.lastWeek')}</AppText>
             <AppText
               variant="labelMono"
               upper
               color={lastWeekProgress.complete ? color : Colors.textMuted}
             >
               {lastWeekProgress.complete
-                ? '✓ Complete'
-                : `${lastWeekProgress.done}/${lastWeekProgress.total} Sets`}
+                ? '✓ ' + t('workout.complete')
+                : t('workout.setsOfTotal', { done: lastWeekProgress.done, total: lastWeekProgress.total })}
             </AppText>
           </View>
         )}
@@ -186,6 +194,7 @@ function DayCard({
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function WorkoutLogScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { data: allDays = [] } = useAllDays();
   const [expanded, setExpanded] = useState<Set<string>>(new Set()); // empty = all collapsed
@@ -229,7 +238,7 @@ export default function WorkoutLogScreen() {
         <View style={styles.appBarLeft}>
           <Ionicons name="barbell" size={22} color={Colors.primary} />
           <AppText variant="headlineMd" color={Colors.primary} style={{ fontFamily: Fonts.sansBold }}>
-            Workout
+            {t('workout.title')}
           </AppText>
         </View>
         <TouchableOpacity
@@ -243,17 +252,17 @@ export default function WorkoutLogScreen() {
       {allDays.length === 0 ? (
         <View style={styles.empty}>
           <Ionicons name="sparkles-outline" size={48} color={Colors.textMuted} />
-          <AppText variant="headlineMd" center>No workout plan yet</AppText>
+          <AppText variant="headlineMd" center>{t('workout.noPlans')}</AppText>
           <AppText variant="bodyMd" color={Colors.textSecondary} center>
-            Go to the Plans tab to build or activate a split.
+            {t('workout.noPlansBody')}
           </AppText>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.scroll}>
           <View style={styles.intro}>
-            <AppText variant="headlineLg" style={{ fontSize: 28, lineHeight: 32 }}>Current Split</AppText>
+            <AppText variant="headlineLg" style={{ fontSize: 28, lineHeight: 32 }}>{t('workout.currentSplit')}</AppText>
             <AppText variant="bodyMd" color={Colors.textSecondary} style={{ marginTop: 4 }}>
-              Select a day, then tap an exercise to start logging.
+              {t('workout.selectDayPrompt')}
             </AppText>
           </View>
 

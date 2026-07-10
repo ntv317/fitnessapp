@@ -39,6 +39,8 @@ describe('progress utilities', () => {
       targetSets: 3,
       catalogId: null,
       muscleGroup: null,
+      instructions: null,
+      imageUris: null,
       repMin: null,
       repMax: null,
       ...overrides,

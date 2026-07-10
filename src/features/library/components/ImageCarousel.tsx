@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, ScrollView, TouchableOpacity, Modal, StyleSheet, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, Radius, Spacing } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { imageUrl } from '../services/ExerciseCatalog';
@@ -13,6 +14,7 @@ interface ImageCarouselProps {
 
 /** Paged image carousel with dot indicators and an optional instructions modal. */
 export function ImageCarousel({ images, instructions }: ImageCarouselProps) {
+  const { t } = useTranslation();
   const { width } = useWindowDimensions();
   const [page, setPage] = useState(0);
   const [showInfo, setShowInfo] = useState(false);
@@ -60,7 +62,7 @@ export function ImageCarousel({ images, instructions }: ImageCarouselProps) {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
-              <AppText variant="headlineMd">Instructions</AppText>
+              <AppText variant="headlineMd">{t('library.instructions')}</AppText>
               <TouchableOpacity onPress={() => setShowInfo(false)} hitSlop={10}>
                 <Ionicons name="close" size={24} color={Colors.textMuted} />
               </TouchableOpacity>

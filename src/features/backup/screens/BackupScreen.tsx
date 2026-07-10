@@ -3,17 +3,20 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { format, isToday } from 'date-fns';
+import { useTranslation } from 'react-i18next';
+import i18n from 'i18next';
 import { AppText, Button } from '@/core/ui';
 import { Colors, Spacing, Radius, FontSize } from '@/core/theme';
 import { usePremium } from '@/core/context/PremiumContext';
 import { isICloudAvailable } from '../services/BackupService';
 import { useBackups, useCreateBackup, useRestoreBackup, useBackupSettings } from '../hooks/useBackups';
+import { dateFnsLocale } from '@/core/utils/date';
 import type { BackupInfo } from '../../../../modules/icloud-backup';
 
 function formatBackupDate(ms: number): string {
-  if (!ms) return 'Unknown';
+  if (!ms) return i18n.t('backup.unknown');
   const d = new Date(ms);
-  return isToday(d) ? `Today, ${format(d, 'HH:mm')}` : format(d, 'MMM d, yyyy');
+  return isToday(d) ? i18n.t('dates.today', { time: format(d, 'HH:mm', { locale: dateFnsLocale() }) }) : format(d, 'MMM d, yyyy', { locale: dateFnsLocale() });
 }
 
 function formatSize(bytes: number): string {
@@ -22,6 +25,7 @@ function formatSize(bytes: number): string {
 
 export default function BackupScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   // Route is deep-linkable (trakfitness://backup) — the Settings-row gate is
   // not enough; enforce here too.
   const { isPro, isLoading: premiumLoading } = usePremium();
@@ -37,22 +41,22 @@ export default function BackupScreen() {
   const handleBackupNow = () => {
     createBackup.mutate(undefined, {
       onSuccess: refreshLastBackup,
-      onError: (e) => Alert.alert('Backup failed', e.message),
+      onError: (e) => Alert.alert(t('backup.backupFailed'), e.message),
     });
   };
 
   const confirmRestore = (backup: BackupInfo) => {
     Alert.alert(
-      'Restore this backup?',
-      `Your data will be replaced with the backup from ${formatBackupDate(backup.modifiedAt)}. Anything logged since then is lost. This cannot be undone.`,
+      t('backup.restoreBackup'),
+      t('backup.restoreBody', { date: formatBackupDate(backup.modifiedAt) }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Restore',
+          text: t('backup.restore'),
           style: 'destructive',
           onPress: () =>
             restoreBackup.mutate(backup.fileName, {
-              onError: (e) => Alert.alert('Restore failed', e.message),
+              onError: (e) => Alert.alert(t('backup.restoreFailed'), e.message),
             }),
         },
       ],
@@ -66,7 +70,7 @@ export default function BackupScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.title}>
-          iCloud Backup
+          {t('backup.title')}
         </AppText>
         <View style={{ width: 24 }} />
       </View>
@@ -76,7 +80,7 @@ export default function BackupScreen() {
           <View style={styles.group}>
             <View style={styles.row}>
               <AppText variant="bodyMd" color={Colors.textSecondary}>
-                Sign in to iCloud in the iOS Settings app to enable backups.
+                {t('backup.iCloudSignIn')}
               </AppText>
             </View>
           </View>
@@ -87,14 +91,14 @@ export default function BackupScreen() {
             <Ionicons name="cloud-outline" size={28} color={Colors.primary} />
             <View>
               <AppText variant="labelMono" upper color={Colors.textMuted}>
-                Last backup
+                {t('backup.lastBackup')}
               </AppText>
-              <AppText variant="bodyLg">{lastBackupAt ? formatBackupDate(lastBackupAt) : 'Never'}</AppText>
+              <AppText variant="bodyLg">{lastBackupAt ? formatBackupDate(lastBackupAt) : t('backup.never')}</AppText>
             </View>
           </View>
           <View style={styles.divider} />
           <View style={styles.row}>
-            <AppText variant="bodyMd">Automatic backup</AppText>
+            <AppText variant="bodyMd">{t('backup.automaticBackup')}</AppText>
             <Switch
               value={autoBackup}
               onValueChange={toggleAutoBackup}
@@ -105,7 +109,7 @@ export default function BackupScreen() {
         </View>
 
         <Button
-          label={createBackup.isPending ? 'Backing Up…' : 'Back Up Now'}
+          label={createBackup.isPending ? t('backup.backingUp') : t('backup.backUpNow')}
           onPress={handleBackupNow}
           disabled={!available || createBackup.isPending || restoreBackup.isPending}
           fullWidth
@@ -113,13 +117,13 @@ export default function BackupScreen() {
         />
 
         <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.sectionLabel}>
-          Backups
+          {t('backup.backups')}
         </AppText>
         <View style={styles.group}>
           {backups.length === 0 && (
             <View style={styles.row}>
               <AppText variant="bodyMd" color={Colors.textMuted}>
-                {isLoading ? 'Loading…' : 'No backups yet'}
+                {isLoading ? t('backup.loading') : t('backup.noBackupsYet')}
               </AppText>
             </View>
           )}
@@ -129,7 +133,7 @@ export default function BackupScreen() {
                 <View>
                   <AppText variant="bodyMd">{formatBackupDate(b.modifiedAt)}</AppText>
                   <AppText variant="labelMono" color={Colors.textMuted} style={{ marginTop: 2 }}>
-                    {b.isDownloaded ? formatSize(b.size) : 'In iCloud'}
+                    {b.isDownloaded ? formatSize(b.size) : t('backup.inICloud')}
                   </AppText>
                 </View>
                 <TouchableOpacity
@@ -138,7 +142,7 @@ export default function BackupScreen() {
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                   <AppText variant="bodyMd" color={Colors.primary}>
-                    {restoreBackup.isPending ? 'Restoring…' : 'Restore'}
+                    {restoreBackup.isPending ? t('backup.restoring') : t('backup.restore')}
                   </AppText>
                 </TouchableOpacity>
               </View>
@@ -148,7 +152,7 @@ export default function BackupScreen() {
         </View>
 
         <AppText variant="labelMono" color={Colors.textMuted} center style={styles.footnote}>
-          Restoring replaces all current data on this device.
+          {t('backup.restoringWarning')}
         </AppText>
       </ScrollView>
     </SafeAreaView>

@@ -1,7 +1,9 @@
 import type {
   BodyWeightEntry,
+  CustomExerciseInput,
   Exercise,
   ExerciseInput,
+  ExercisePatch,
   PageOptions,
   Plan,
   PlanDay,
@@ -21,9 +23,26 @@ import type {
 export interface IWorkoutRepository {
   getExerciseByName(name: string): Promise<Exercise | null>;
   getExerciseByCatalogId(catalogId: string): Promise<Exercise | null>;
+  getExerciseById(id: number): Promise<Exercise | null>;
   getAllExercises(): Promise<Exercise[]>;
   getAllDays(): Promise<{ dayTag: string; exercises: Exercise[] }[]>;
   upsertExercise(input: ExerciseInput): Promise<Exercise>;
+
+  /** True if no OTHER exercise has this name, compared case/punctuation-insensitively. */
+  checkNameAvailable(name: string, excludeId?: number): Promise<boolean>;
+  /** Create a brand-new user exercise. Throws NameTakenError on a name collision. */
+  createCustomExercise(input: CustomExerciseInput): Promise<Exercise>;
+  /** Edit an existing exercise; marks it is_custom = 1. Throws NameTakenError on a name collision. */
+  updateExercise(id: number, patch: ExercisePatch): Promise<Exercise>;
+  /** Edit (or materialize) the user's override of a catalog exercise. Throws NameTakenError on a name collision. */
+  createOrUpdateCatalogOverride(catalogId: string, patch: ExercisePatch): Promise<Exercise>;
+  /** Clear a user's override, restoring the given canonical catalog values. Throws NameTakenError on a name collision. */
+  resetExerciseOverride(
+    id: number,
+    canonical: { name: string; isCompound: boolean; muscleGroup: string | null },
+  ): Promise<Exercise>;
+  /** Delete a custom exercise unless it's referenced by logged history or a plan. */
+  deleteCustomExercise(id: number): Promise<{ blocked: boolean; reason?: 'logged' | 'planned' }>;
 
   deleteLog(logId: number): Promise<void>;
 

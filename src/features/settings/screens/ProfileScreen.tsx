@@ -2,29 +2,32 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { AppText } from '@/core/ui/AppText';
 import { Colors, Spacing, Radius } from '@/core/theme';
 import { usePremium } from '@/core/context/PremiumContext';
 
-const ROWS: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; href: string }[] = [
-  { label: 'Settings', icon: 'settings-outline', href: '/settings' },
-  { label: 'This Week', icon: 'stats-chart-outline', href: '/stats' },
-  { label: 'Body Weight', icon: 'body-outline', href: '/bodyweight' },
-  { label: 'AI Import', icon: 'sparkles-outline', href: '/import' },
-  { label: 'All History', icon: 'time-outline', href: '/history' },
-];
-
 export default function ProfileScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { isPro } = usePremium();
+
+  const ROWS: { label: string; icon: React.ComponentProps<typeof Ionicons>['name']; href: string }[] = [
+    { label: t('profile.settings'), icon: 'settings-outline', href: '/settings' },
+    { label: t('profile.thisWeek'), icon: 'stats-chart-outline', href: '/stats' },
+    { label: t('profile.bodyWeight'), icon: 'body-outline', href: '/bodyweight' },
+    { label: t('profile.aiImport'), icon: 'sparkles-outline', href: '/import' },
+    { label: t('profile.allHistory'), icon: 'time-outline', href: '/history' },
+  ];
+
   const rows = isPro
     ? ROWS
-    : [{ label: 'LIFTREPS Pro', icon: 'star-outline', href: '/paywall' } as const, ...ROWS];
+    : [{ label: t('profile.proLabel'), icon: 'star-outline', href: '/paywall' } as const, ...ROWS];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.appBar}>
-        <AppText variant="headlineLg">Profile</AppText>
+        <AppText variant="headlineLg">{t('profile.title')}</AppText>
       </View>
 
       <View style={styles.content}>

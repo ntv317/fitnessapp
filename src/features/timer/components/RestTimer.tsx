@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { formatDuration } from '@/core/utils/format';
 import { useRestTimer } from '../hooks/useRestTimer';
@@ -14,6 +15,7 @@ interface Props {
  * Starts automatically after a set is saved; user can restart or skip.
  */
 export function RestTimer({ defaultSeconds }: Props) {
+  const { t } = useTranslation();
   const { seconds, isRunning, start, pause, reset } = useRestTimer();
 
   const progress = defaultSeconds > 0 ? seconds / defaultSeconds : 0;
@@ -44,16 +46,16 @@ export function RestTimer({ defaultSeconds }: Props) {
         </View>
 
         <View style={styles.controls}>
-          <Text style={styles.label}>Rest Timer</Text>
-          <Text style={styles.sub}>{defaultSeconds}s default</Text>
+          <Text style={styles.label}>{t('timer.restTimer')}</Text>
+          <Text style={styles.sub}>{t('timer.defaultLabel', { defaultSeconds })}</Text>
 
           <View style={styles.btnRow}>
             {isRunning ? (
-              <TimerBtn label="Pause" onPress={pause} color={Colors.warning} />
+              <TimerBtn label={t('timer.pause')} onPress={pause} color={Colors.warning} />
             ) : (
-              <TimerBtn label="Start" onPress={() => start(defaultSeconds)} color={Colors.primary} />
+              <TimerBtn label={t('timer.start')} onPress={() => start(defaultSeconds)} color={Colors.primary} />
             )}
-            <TimerBtn label="Reset" onPress={reset} color={Colors.surfaceAlt} />
+            <TimerBtn label={t('timer.reset')} onPress={reset} color={Colors.surfaceAlt} />
           </View>
         </View>
       </View>

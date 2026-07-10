@@ -3,6 +3,7 @@ import { View, FlatList, TouchableOpacity, Alert, StyleSheet } from 'react-nativ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, Radius } from '@/core/theme';
 import { AppText, Button } from '@/core/ui';
 import { usePlans, useCreatePlan, useSetActivePlan } from '@/features/workout/hooks/usePlans';
@@ -13,6 +14,7 @@ const MARGIN = 20;
 
 export default function PlanListScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { data: plans = [] } = usePlans();
   const createPlan = useCreatePlan();
   const setActivePlan = useSetActivePlan();
@@ -24,24 +26,24 @@ export default function PlanListScreen() {
       return;
     }
     Alert.prompt(
-      'New Plan',
-      'Name your plan (e.g. "Push Pull Legs")',
+      t('plans.newPlanTitle'),
+      t('plans.newPlanSubtitle'),
       async (name) => {
         if (!name?.trim()) return;
         try {
           const plan = await createPlan.mutateAsync(name.trim());
           router.push(`/plan/${plan.id}` as never);
         } catch {
-          Alert.alert('Could not create plan', 'A plan with that name already exists.');
+          Alert.alert(t('plans.createError'), t('plans.alreadyExists'));
         }
       },
     );
-  }, [createPlan, router, isPro, plans.length]);
+  }, [createPlan, router, isPro, plans.length, t]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.appBar}>
-        <AppText variant="headlineLg">Plans</AppText>
+        <AppText variant="headlineLg">{t('tabs.plans')}</AppText>
       </View>
 
       <FlatList<Plan>
@@ -51,9 +53,9 @@ export default function PlanListScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Ionicons name="calendar-outline" size={48} color={Colors.textMuted} />
-            <AppText variant="headlineMd" center>No plans yet</AppText>
+            <AppText variant="headlineMd" center>{t('plans.noPlanYet')}</AppText>
             <AppText variant="bodyMd" color={Colors.textSecondary} center>
-              Create a plan to build your own training split.
+              {t('plans.noPlanBody')}
             </AppText>
           </View>
         }
@@ -67,7 +69,7 @@ export default function PlanListScreen() {
               <AppText variant="bodyLg">{item.name}</AppText>
               {item.isActive && (
                 <View style={styles.activeBadge}>
-                  <AppText variant="labelMono" upper color={Colors.white}>Active</AppText>
+                  <AppText variant="labelMono" upper color={Colors.white}>{t('plans.active')}</AppText>
                 </View>
               )}
             </View>
@@ -77,7 +79,7 @@ export default function PlanListScreen() {
                 hitSlop={10}
                 style={styles.setActiveBtn}
               >
-                <AppText variant="labelMono" upper color={Colors.primary}>Set Active</AppText>
+                <AppText variant="labelMono" upper color={Colors.primary}>{t('plans.setActive')}</AppText>
               </TouchableOpacity>
             )}
             <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
@@ -86,7 +88,7 @@ export default function PlanListScreen() {
       />
 
       <View style={styles.footer}>
-        <Button label="New Plan" icon="add" onPress={handleCreate} fullWidth />
+        <Button label={t('plans.newPlan')} icon="add" onPress={handleCreate} fullWidth />
       </View>
     </SafeAreaView>
   );

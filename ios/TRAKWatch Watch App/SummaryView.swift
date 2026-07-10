@@ -73,11 +73,11 @@ struct SummaryView: View {
     private var statsSection: some View {
         VStack(spacing: 8) {
             SummaryStatCard(
-                label: "TOTAL VOLUME",
+                label: String(localized: "TOTAL VOLUME"),
                 value: volumeDisplay(session.workoutState.totalVolume),
                 unit: session.workoutState.unit
             )
-            SummaryStatCard(label: "TIME", value: "\(session.workoutState.elapsedMinutes)", unit: "min")
+            SummaryStatCard(label: String(localized: "TIME"), value: "\(session.workoutState.elapsedMinutes)", unit: String(localized: "min"))
         }
     }
 

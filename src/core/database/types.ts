@@ -11,6 +11,8 @@ export interface ExerciseRow {
   target_sets: number;
   catalog_id: string | null;
   muscle_group: string | null;
+  instructions: string | null;
+  image_uris: string | null;
 }
 
 export interface PlanRow {
@@ -66,6 +68,8 @@ export interface Exercise {
   targetSets: number;
   catalogId: string | null;
   muscleGroup: string | null;
+  instructions: string[] | null;
+  imageUris: string[] | null;
   /** Active plan's rep range for this exercise; null outside a plan context. */
   repMin: number | null;
   repMax: number | null;
@@ -143,6 +147,33 @@ export interface ExerciseInput {
    * already-customized exercise; leave false for a genuine re-import.
    */
   keepExistingSettings?: boolean;
+}
+
+/** Thrown when a create/update would collide with another exercise's name (case/punctuation-insensitive). */
+export class NameTakenError extends Error {
+  constructor(name: string) {
+    super(`An exercise named "${name}" already exists.`);
+    this.name = 'NameTakenError';
+  }
+}
+
+export interface CustomExerciseInput {
+  name: string;
+  isCompound: boolean;
+  targetSets?: number;
+  muscleGroup?: string | null;
+  instructions?: string[] | null;
+  imageFilenames?: string[] | null;
+}
+
+/** Partial edit applied by updateExercise / createOrUpdateCatalogOverride — only provided fields are written. */
+export interface ExercisePatch {
+  name?: string;
+  isCompound?: boolean;
+  targetSets?: number;
+  muscleGroup?: string | null;
+  instructions?: string[] | null;
+  imageFilenames?: string[] | null;
 }
 
 export interface BodyWeightEntry {

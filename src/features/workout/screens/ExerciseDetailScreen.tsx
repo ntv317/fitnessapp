@@ -454,10 +454,13 @@ export default function ExerciseDetailScreen() {
       const currentVolumeKg = updatedSets.reduce((sum, s) => sum + s.weight * s.reps, 0);
       const otherVolumeKg =
         sess?.exercises.reduce((sum, e) => sum + (e.name === exercise?.name ? 0 : e.volumeKg), 0) ?? 0;
+      const totalSets = Math.max(target, loggedN);
       sendWorkoutState({
         exerciseName: exercise?.name ?? '',
-        setNumber: loggedN + 1,
-        totalSets: Math.max(target, loggedN),
+        // Clamp: after the final set there is no next set, so setNumber must not
+        // exceed totalSets or the watch/Live Activity read "Set 4 of 3".
+        setNumber: Math.min(loggedN + 1, totalSets),
+        totalSets,
         suggestedReps: nextReps || suggestedReps,
         suggestedWeight: fromKg(weightForPlates),
         restDuration,
@@ -534,7 +537,8 @@ export default function ExerciseDetailScreen() {
       setRestSeconds(rest);
       setRestKey((k) => k + 1);
       pushWatchState(updated, true, rest);
-      startRestActivity(exercise?.name ?? '', updated.length + 1, Math.max(target, updated.length), Date.now() + rest * 1000, accent);
+      const totalSetsForActivity = Math.max(target, updated.length);
+      startRestActivity(exercise?.name ?? '', Math.min(updated.length + 1, totalSetsForActivity), totalSetsForActivity, Date.now() + rest * 1000, accent);
       scheduleRestNotification(rest);
     },
     [exerciseId, exercise, saveSet, pushWatchState, accent, scheduleRestNotification, dayTag, target, qc],
@@ -728,13 +732,24 @@ export default function ExerciseDetailScreen() {
             Workout
           </AppText>
         </View>
-        <TouchableOpacity
-          onPress={handleMoreMenu}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          style={styles.moreBtn}
-        >
-          <Ionicons name="ellipsis-horizontal" size={22} color={Colors.textSecondary} />
-        </TouchableOpacity>
+        <View style={styles.appBarRight}>
+          <TouchableOpacity
+            onPress={() =>
+              router.push({ pathname: '/library/exercise-form', params: { exerciseId: String(exerciseId) } } as never)
+            }
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.moreBtn}
+          >
+            <Ionicons name="pencil" size={20} color={Colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleMoreMenu}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.moreBtn}
+          >
+            <Ionicons name="ellipsis-horizontal" size={22} color={Colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.content}>
@@ -876,6 +891,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
   },
   appBarLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  appBarRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   moreBtn: {
     padding: 4,
   },

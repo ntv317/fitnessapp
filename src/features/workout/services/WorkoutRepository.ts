@@ -2,8 +2,10 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import type { IWorkoutRepository } from './IWorkoutRepository';
 import type {
   BodyWeightEntry,
+  CustomExerciseInput,
   Exercise,
   ExerciseInput,
+  ExercisePatch,
   ExerciseRow,
   Plan,
   PlanDay,
@@ -23,6 +25,8 @@ import type {
 } from '@/core/database/types';
 import { weekStartOf } from '@/core/utils/date';
 import { weeklyKey } from '../utils/progress';
+import { normalizeName } from '@/features/import/services/catalogMatch';
+import { NameTakenError } from '@/core/database/types';
 
 type ExerciseWithDay = ExerciseRow & {
   day_tag: string | null;
@@ -55,6 +59,18 @@ export class WorkoutRepository implements IWorkoutRepository {
   // plan_target_sets (when present) overrides the exercise's own target_sets —
   // the same exercise can have a different planned set count per plan/day.
   private static toExercise(row: ExerciseWithDay): Exercise {
+    let instructions: string[] | null = null;
+    try {
+      instructions = row.instructions ? JSON.parse(row.instructions) : null;
+    } catch {
+      instructions = null;
+    }
+    let imageUris: string[] | null = null;
+    try {
+      imageUris = row.image_uris ? JSON.parse(row.image_uris) : null;
+    } catch {
+      imageUris = null;
+    }
     return {
       id: row.id,
       name: row.name,
@@ -65,6 +81,8 @@ export class WorkoutRepository implements IWorkoutRepository {
       targetSets: row.plan_target_sets ?? row.target_sets,
       catalogId: row.catalog_id ?? null,
       muscleGroup: row.muscle_group ?? null,
+      instructions,
+      imageUris,
       repMin: row.rep_min ?? null,
       repMax: row.rep_max ?? null,
     };
@@ -84,6 +102,14 @@ export class WorkoutRepository implements IWorkoutRepository {
     const row = await this.db.getFirstAsync<ExerciseWithDay>(
       `SELECT e.*, ${WorkoutRepository.DAY_TAG_SQL} AS day_tag FROM Exercises e WHERE e.catalog_id = ?;`,
       [catalogId],
+    );
+    return row ? WorkoutRepository.toExercise(row) : null;
+  }
+
+  async getExerciseById(id: number): Promise<Exercise | null> {
+    const row = await this.db.getFirstAsync<ExerciseWithDay>(
+      `SELECT e.*, ${WorkoutRepository.DAY_TAG_SQL} AS day_tag FROM Exercises e WHERE e.id = ?;`,
+      [id],
     );
     return row ? WorkoutRepository.toExercise(row) : null;
   }
@@ -170,6 +196,168 @@ export class WorkoutRepository implements IWorkoutRepository {
       [row.id],
     );
     return WorkoutRepository.toExercise({ ...row, day_tag: dayRow?.day_tag ?? null });
+  }
+
+  // expo-sqlite doesn't expose a structured constraint code to JS (see
+  // Exceptions.swift/SQLExceptions.kt) — only a message string containing the
+  // raw sqlite errmsg — so a UNIQUE violation can only be detected by substring.
+  private static isUniqueViolation(err: unknown): boolean {
+    return err instanceof Error && /UNIQUE constraint failed/i.test(err.message);
+  }
+
+  private async insertExercise(params: {
+    name: string;
+    isCompound: boolean;
+    targetSets?: number;
+    catalogId: string | null;
+    muscleGroup?: string | null;
+    instructions?: string[] | null;
+    imageFilenames?: string[] | null;
+  }): Promise<number> {
+    const REST_COMPOUND = 150;
+    const REST_ISOLATION = 75;
+    const instructions = params.instructions ? JSON.stringify(params.instructions) : null;
+    const imageUris = params.imageFilenames ? JSON.stringify(params.imageFilenames) : null;
+    try {
+      const result = await this.db.runAsync(
+        `INSERT INTO Exercises (name, default_rest_seconds, is_compound, is_custom, target_sets, catalog_id, muscle_group, instructions, image_uris)
+         VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?);`,
+        [
+          params.name,
+          params.isCompound ? REST_COMPOUND : REST_ISOLATION,
+          params.isCompound ? 1 : 0,
+          params.targetSets ?? 3,
+          params.catalogId,
+          params.muscleGroup ?? null,
+          instructions,
+          imageUris,
+        ],
+      );
+      return result.lastInsertRowId;
+    } catch (e) {
+      if (WorkoutRepository.isUniqueViolation(e)) throw new NameTakenError(params.name);
+      throw e;
+    }
+  }
+
+  async checkNameAvailable(name: string, excludeId?: number): Promise<boolean> {
+    const normalized = normalizeName(name);
+    const rows = await this.db.getAllAsync<{ id: number; name: string }>(
+      excludeId != null ? 'SELECT id, name FROM Exercises WHERE id != ?;' : 'SELECT id, name FROM Exercises;',
+      excludeId != null ? [excludeId] : [],
+    );
+    return !rows.some((r) => normalizeName(r.name) === normalized);
+  }
+
+  async createCustomExercise(input: CustomExerciseInput): Promise<Exercise> {
+    const id = await this.insertExercise({
+      name: input.name,
+      isCompound: input.isCompound,
+      targetSets: input.targetSets,
+      catalogId: null,
+      muscleGroup: input.muscleGroup,
+      instructions: input.instructions,
+      imageFilenames: input.imageFilenames,
+    });
+    const exercise = await this.getExerciseById(id);
+    if (!exercise) throw new Error(`createCustomExercise failed for "${input.name}"`);
+    return exercise;
+  }
+
+  async updateExercise(id: number, patch: ExercisePatch): Promise<Exercise> {
+    const sets: string[] = ['is_custom = 1'];
+    const params: (string | number | null)[] = [];
+    if (patch.name !== undefined) {
+      sets.push('name = ?');
+      params.push(patch.name);
+    }
+    if (patch.isCompound !== undefined) {
+      sets.push('is_compound = ?');
+      params.push(patch.isCompound ? 1 : 0);
+    }
+    if (patch.targetSets !== undefined) {
+      sets.push('target_sets = ?');
+      params.push(patch.targetSets);
+    }
+    if (patch.muscleGroup !== undefined) {
+      sets.push('muscle_group = ?');
+      params.push(patch.muscleGroup);
+    }
+    if (patch.instructions !== undefined) {
+      sets.push('instructions = ?');
+      params.push(patch.instructions ? JSON.stringify(patch.instructions) : null);
+    }
+    if (patch.imageFilenames !== undefined) {
+      sets.push('image_uris = ?');
+      params.push(patch.imageFilenames ? JSON.stringify(patch.imageFilenames) : null);
+    }
+    params.push(id);
+    try {
+      await this.db.runAsync(`UPDATE Exercises SET ${sets.join(', ')} WHERE id = ?;`, params);
+    } catch (e) {
+      if (WorkoutRepository.isUniqueViolation(e)) throw new NameTakenError(patch.name ?? '');
+      throw e;
+    }
+    const exercise = await this.getExerciseById(id);
+    if (!exercise) throw new Error(`updateExercise failed for id ${id}`);
+    return exercise;
+  }
+
+  async createOrUpdateCatalogOverride(catalogId: string, patch: ExercisePatch): Promise<Exercise> {
+    const existing = await this.getExerciseByCatalogId(catalogId);
+    if (existing) return this.updateExercise(existing.id, patch);
+
+    if (!patch.name) throw new Error('createOrUpdateCatalogOverride requires a name to materialize a new row');
+    const id = await this.insertExercise({
+      name: patch.name,
+      isCompound: patch.isCompound ?? false,
+      targetSets: patch.targetSets,
+      catalogId,
+      muscleGroup: patch.muscleGroup,
+      instructions: patch.instructions,
+      imageFilenames: patch.imageFilenames,
+    });
+    const exercise = await this.getExerciseById(id);
+    if (!exercise) throw new Error(`createOrUpdateCatalogOverride failed for catalogId "${catalogId}"`);
+    return exercise;
+  }
+
+  async resetExerciseOverride(
+    id: number,
+    canonical: { name: string; isCompound: boolean; muscleGroup: string | null },
+  ): Promise<Exercise> {
+    try {
+      await this.db.runAsync(
+        `UPDATE Exercises SET
+           name = ?, is_compound = ?, muscle_group = ?,
+           instructions = NULL, image_uris = NULL, is_custom = 0
+         WHERE id = ?;`,
+        [canonical.name, canonical.isCompound ? 1 : 0, canonical.muscleGroup, id],
+      );
+    } catch (e) {
+      if (WorkoutRepository.isUniqueViolation(e)) throw new NameTakenError(canonical.name);
+      throw e;
+    }
+    const exercise = await this.getExerciseById(id);
+    if (!exercise) throw new Error(`resetExerciseOverride failed for id ${id}`);
+    return exercise;
+  }
+
+  async deleteCustomExercise(id: number): Promise<{ blocked: boolean; reason?: 'logged' | 'planned' }> {
+    const logged = await this.db.getFirstAsync<{ one: number }>(
+      'SELECT 1 AS one FROM WorkoutLogs WHERE exercise_id = ? LIMIT 1;',
+      [id],
+    );
+    if (logged) return { blocked: true, reason: 'logged' };
+
+    const planned = await this.db.getFirstAsync<{ one: number }>(
+      'SELECT 1 AS one FROM PlanExercises WHERE exercise_id = ? LIMIT 1;',
+      [id],
+    );
+    if (planned) return { blocked: true, reason: 'planned' };
+
+    await this.db.runAsync('DELETE FROM Exercises WHERE id = ?;', [id]);
+    return { blocked: false };
   }
 
   // ── Logging ───────────────────────────────────────────────────────────────
@@ -487,6 +675,15 @@ export class WorkoutRepository implements IWorkoutRepository {
       );
       const planId = planResult.lastInsertRowId;
 
+      // Loaded once and keyed by normalized name: an unmatched (catalogId
+      // null) import whose name differs only by casing/punctuation from an
+      // existing user exercise must reuse that row instead of creating a
+      // near-duplicate — ON CONFLICT(name) only catches an exact match.
+      const existingExercises = await this.getAllExercises();
+      const byNormalizedName = new Map<string, Exercise>(
+        existingExercises.map((e) => [normalizeName(e.name), e]),
+      );
+
       for (let d = 0; d < payload.length; d++) {
         const dayName = payload[d].day;
         const dayResult = await this.db.runAsync(
@@ -497,17 +694,32 @@ export class WorkoutRepository implements IWorkoutRepository {
 
         for (let i = 0; i < payload[d].exercises.length; i++) {
           const item = payload[d].exercises[i];
-          const exercise = await this.upsertExercise({
-            name: item.name,
-            defaultRestSeconds: item.isCompound ? 150 : 75,
-            isCompound: item.isCompound,
-            isCustom: false,
-            catalogId: item.catalogId,
-            muscleGroup: item.muscleGroup,
-            // A re-import must not clobber rest times or flags the user already
-            // customized on an existing exercise.
-            keepExistingSettings: true,
-          });
+          // A catalog-linked exercise may have been renamed by the user since
+          // it was first imported, so its Exercises row no longer holds the
+          // catalog's canonical name. Look it up by catalog_id FIRST — an
+          // upsert-by-name here would take the INSERT branch and trip the
+          // partial-unique index on catalog_id, rolling back the whole import.
+          const existingByCatalog = item.catalogId
+            ? await this.getExerciseByCatalogId(item.catalogId)
+            : null;
+          const existingByName = item.catalogId
+            ? null
+            : byNormalizedName.get(normalizeName(item.name)) ?? null;
+
+          const exercise =
+            existingByCatalog ??
+            existingByName ??
+            (await this.upsertExercise({
+              name: item.name,
+              defaultRestSeconds: item.isCompound ? 150 : 75,
+              isCompound: item.isCompound,
+              isCustom: item.catalogId === null,
+              catalogId: item.catalogId,
+              muscleGroup: item.muscleGroup,
+              // A re-import must not clobber rest times or flags the user already
+              // customized on an existing exercise.
+              keepExistingSettings: true,
+            }));
           // OR IGNORE: an AI payload can list the same exercise name twice
           // under one day. Without it, the second insert hits
           // UNIQUE(plan_day_id, exercise_id) and rolls back the whole import.

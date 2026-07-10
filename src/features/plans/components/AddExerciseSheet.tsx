@@ -1,15 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { View, TouchableOpacity, Modal, ScrollView, TextInput, StyleSheet, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText, Button, StepperInput, SegmentedTabs } from '@/core/ui';
 import { useExercises, useUpsertExercise } from '@/features/workout/hooks/useExercises';
 import { useAddPlanExercise } from '@/features/workout/hooks/usePlans';
-import { search as searchCatalog, getAll as getAllCatalog } from '@/features/library/services/ExerciseCatalog';
+import { useRepository } from '@/features/workout/hooks/useRepository';
+import { search as searchCatalog, getAll as getAllCatalog, displayName } from '@/features/library/services/ExerciseCatalog';
+import { useExerciseDisplayName } from '@/features/library/hooks/useExerciseDisplayName';
 
 type PickedExercise =
-  | { kind: 'existing'; exerciseId: number; name: string }
-  | { kind: 'catalog'; catalogId: string; name: string; isCompound: boolean };
+  | { kind: 'existing'; exerciseId: number; name: string; label: string }
+  | { kind: 'catalog'; catalogId: string; name: string; label: string; isCompound: boolean };
 
 interface AddExerciseSheetProps {
   visible: boolean;
@@ -18,6 +21,7 @@ interface AddExerciseSheetProps {
 }
 
 export function AddExerciseSheet({ visible, onClose, planDayId }: AddExerciseSheetProps) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'library' | 'custom'>('library');
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<PickedExercise | null>(null);
@@ -28,6 +32,7 @@ export function AddExerciseSheet({ visible, onClose, planDayId }: AddExerciseShe
   const { data: existingExercises = [] } = useExercises();
   const upsertExercise = useUpsertExercise();
   const addPlanExercise = useAddPlanExercise();
+  const repo = useRepository();
 
   // Browsable before typing: an empty query shows the whole catalog A→Z
   // instead of a blank sheet that looks like search is broken.
@@ -35,10 +40,13 @@ export function AddExerciseSheet({ visible, onClose, planDayId }: AddExerciseShe
     () => (query.trim() ? searchCatalog(query) : getAllCatalog()).slice(0, 50),
     [query],
   );
+  const exerciseDisplayName = useExerciseDisplayName();
   const customResults = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return existingExercises.filter((e) => !q || e.name.toLowerCase().includes(q));
-  }, [existingExercises, query]);
+    return existingExercises.filter(
+      (e) => !q || e.name.toLowerCase().includes(q) || exerciseDisplayName(e).toLowerCase().includes(q),
+    );
+  }, [existingExercises, query, exerciseDisplayName]);
 
   const reset = () => {
     setPicked(null);
@@ -60,15 +68,24 @@ export function AddExerciseSheet({ visible, onClose, planDayId }: AddExerciseShe
       if (picked.kind === 'existing') {
         exerciseId = picked.exerciseId;
       } else {
-        const ex = await upsertExercise.mutateAsync({
-          name: picked.name,
-          isCompound: picked.isCompound,
-          isCustom: false,
-          catalogId: picked.catalogId,
-          defaultRestSeconds: picked.isCompound ? 150 : 75,
-          keepExistingSettings: true,
-        });
-        exerciseId = ex.id;
+        // The user may have renamed this catalog exercise's row since it was
+        // first added, so it no longer holds the catalog's canonical name —
+        // an upsert by that name would trip the partial-unique catalog_id
+        // index and roll back. Reuse the existing row by catalog_id first.
+        const existing = await repo.getExerciseByCatalogId(picked.catalogId);
+        if (existing) {
+          exerciseId = existing.id;
+        } else {
+          const ex = await upsertExercise.mutateAsync({
+            name: picked.name,
+            isCompound: picked.isCompound,
+            isCustom: false,
+            catalogId: picked.catalogId,
+            defaultRestSeconds: picked.isCompound ? 150 : 75,
+            keepExistingSettings: true,
+          });
+          exerciseId = ex.id;
+        }
       }
       await addPlanExercise.mutateAsync({
         planDayId,
@@ -79,22 +96,19 @@ export function AddExerciseSheet({ visible, onClose, planDayId }: AddExerciseShe
       });
       handleClose();
     } catch {
-      Alert.alert('Could not add exercise', 'That exercise is already in this day.');
+      Alert.alert(t('plans.addExerciseError'), t('plans.exerciseAlreadyInDay'));
     }
   };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      {/* Without this, the bottom-anchored sheet sits under the keyboard the
-          moment the search field focuses — with an empty result list the whole
-          sheet fit below the keyboard line, which made search look broken. */}
       <KeyboardAvoidingView
         style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <AppText variant="headlineMd">Add Exercise</AppText>
+            <AppText variant="headlineMd">{t('plans.addExercise')}</AppText>
             <TouchableOpacity onPress={handleClose} hitSlop={10}>
               <Ionicons name="close" size={24} color={Colors.textMuted} />
             </TouchableOpacity>
@@ -104,15 +118,15 @@ export function AddExerciseSheet({ visible, onClose, planDayId }: AddExerciseShe
             <>
               <SegmentedTabs
                 options={[
-                  { value: 'library', label: 'Library' },
-                  { value: 'custom', label: 'Your Exercises' },
+                  { value: 'library', label: t('plans.library') },
+                  { value: 'custom', label: t('plans.customExercises') },
                 ]}
                 value={mode}
                 onChange={setMode}
                 style={{ marginBottom: Spacing.md }}
               />
               <TextInput
-                placeholder="Search exercises"
+                placeholder={t('plans.searchExercises')}
                 placeholderTextColor={Colors.textMuted}
                 value={query}
                 onChangeText={setQuery}
@@ -124,52 +138,52 @@ export function AddExerciseSheet({ visible, onClose, planDayId }: AddExerciseShe
                       <TouchableOpacity
                         key={c.id}
                         style={styles.resultRow}
-                        onPress={() => setPicked({ kind: 'catalog', catalogId: c.id, name: c.name, isCompound: c.mechanic === 'compound' })}
+                        onPress={() => setPicked({ kind: 'catalog', catalogId: c.id, name: c.name, label: displayName(c), isCompound: c.mechanic === 'compound' })}
                       >
-                        <AppText variant="bodyMd">{c.name}</AppText>
+                        <AppText variant="bodyMd">{displayName(c)}</AppText>
                       </TouchableOpacity>
                     ))
                   : customResults.map((e) => (
                       <TouchableOpacity
                         key={e.id}
                         style={styles.resultRow}
-                        onPress={() => setPicked({ kind: 'existing', exerciseId: e.id, name: e.name })}
+                        onPress={() => setPicked({ kind: 'existing', exerciseId: e.id, name: e.name, label: exerciseDisplayName(e) })}
                       >
-                        <AppText variant="bodyMd">{e.name}</AppText>
+                        <AppText variant="bodyMd">{exerciseDisplayName(e)}</AppText>
                       </TouchableOpacity>
                     ))}
                 {mode === 'library' && query.trim() && catalogResults.length === 0 && (
                   <AppText variant="bodyMd" color={Colors.textMuted} style={{ paddingVertical: Spacing.md }}>
-                    No matches.
+                    {t('plans.noMatches')}
                   </AppText>
                 )}
               </ScrollView>
             </>
           ) : (
             <View style={{ gap: Spacing.md }}>
-              <AppText variant="bodyLg" style={{ fontFamily: Fonts.sansBold }}>{picked.name}</AppText>
+              <AppText variant="bodyLg" style={{ fontFamily: Fonts.sansBold }}>{picked.label}</AppText>
               <View>
                 <AppText variant="labelMono" upper color={Colors.textMuted} style={{ marginBottom: 4 }}>
-                  Target Sets
+                  {t('plans.targetSets')}
                 </AppText>
                 <StepperInput value={targetSets} onChangeText={setTargetSets} step={1} min={1} />
               </View>
               <View style={{ flexDirection: 'row', gap: Spacing.md }}>
                 <View style={{ flex: 1 }}>
                   <AppText variant="labelMono" upper color={Colors.textMuted} style={{ marginBottom: 4 }}>
-                    Rep Min
+                    {t('plans.repMin')}
                   </AppText>
                   <StepperInput value={repMin} onChangeText={setRepMin} step={1} min={0} placeholder="—" />
                 </View>
                 <View style={{ flex: 1 }}>
                   <AppText variant="labelMono" upper color={Colors.textMuted} style={{ marginBottom: 4 }}>
-                    Rep Max
+                    {t('plans.repMax')}
                   </AppText>
                   <StepperInput value={repMax} onChangeText={setRepMax} step={1} min={0} placeholder="—" />
                 </View>
               </View>
-              <Button label="Add to day" onPress={handleAdd} fullWidth />
-              <Button label="Back" variant="ghost" onPress={() => setPicked(null)} fullWidth />
+              <Button label={t('plans.addToDay')} onPress={handleAdd} fullWidth />
+              <Button label={t('plans.back')} variant="ghost" onPress={() => setPicked(null)} fullWidth />
             </View>
           )}
         </View>

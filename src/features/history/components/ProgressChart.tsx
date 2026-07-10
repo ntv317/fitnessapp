@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import { LineChart } from 'react-native-gifted-charts/dist/LineChart';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 import { useUnit } from '@/core/context/UnitContext';
+import { dateFnsLocale } from '@/core/utils/date';
 import type { WorkoutLog } from '@/core/database/types';
 
 type Metric = 'maxWeight' | 'oneRM' | 'volume' | 'bestReps';
@@ -164,9 +165,9 @@ export function ProgressChart({ logs, color = Colors.primary, metrics: metricsPr
       </View>
 
       <View style={s.xRow}>
-        <Text style={s.xLabel}>{format(new Date(data[0].timestamp), 'MMM d')}</Text>
+        <Text style={s.xLabel}>{format(new Date(data[0].timestamp), 'MMM d', { locale: dateFnsLocale() })}</Text>
         <Text style={s.xLabel}>{data.length} sessions</Text>
-        <Text style={s.xLabel}>{format(new Date(data[data.length - 1].timestamp), 'MMM d')}</Text>
+        <Text style={s.xLabel}>{format(new Date(data[data.length - 1].timestamp), 'MMM d', { locale: dateFnsLocale() })}</Text>
       </View>
     </View>
   );

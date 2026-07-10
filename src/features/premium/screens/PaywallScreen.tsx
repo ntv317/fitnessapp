@@ -3,6 +3,7 @@ import { View, ScrollView, TouchableOpacity, StyleSheet, Alert, Linking } from '
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { AppText, Button } from '@/core/ui';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
@@ -20,11 +21,11 @@ const Dark = {
 
 type PlanKey = 'monthly' | 'yearly' | 'lifetime';
 
-const BENEFITS: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string }[] = [
-  { icon: 'cloud-upload-outline', label: 'iCloud Backup — never lose a PR' },
-  { icon: 'watch-outline', label: 'Apple Watch logging' },
-  { icon: 'trending-up-outline', label: 'Smart training: 1RM trends, PRs, progression hints' },
-  { icon: 'shield-checkmark-outline', label: 'Indie-built, private, no ads' },
+const getBenefits = (t: (key: string) => string) => [
+  { icon: 'cloud-upload-outline' as const, label: t('premium.benefitBackup') },
+  { icon: 'watch-outline' as const, label: t('premium.benefitWatch') },
+  { icon: 'trending-up-outline' as const, label: t('premium.benefitTraining') },
+  { icon: 'shield-checkmark-outline' as const, label: t('premium.benefitPrivate') },
 ];
 
 // A free intro offer configured in App Store Connect, e.g. "7-day free trial".
@@ -38,6 +39,7 @@ function trialLabel(pkg: PurchasesPackage | undefined): string | null {
 
 export default function PaywallScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { isPro, offerings, purchase, restore } = usePremium();
   const [selected, setSelected] = useState<PlanKey>('yearly');
   const [busy, setBusy] = useState(false);
@@ -62,7 +64,7 @@ export default function PaywallScreen() {
   const handlePurchase = async () => {
     const pkg = packages[selected];
     if (!pkg) {
-      Alert.alert('Store unavailable', 'Purchases are not available right now. Please try again later.');
+      Alert.alert(t('premium.storeUnavailable'), t('premium.storeMessage'));
       return;
     }
     setBusy(true);
@@ -71,7 +73,7 @@ export default function PaywallScreen() {
       router.back();
     } catch (e: unknown) {
       const err = e as { userCancelled?: boolean; message?: string };
-      if (!err.userCancelled) Alert.alert('Purchase failed', err.message ?? 'Please try again.');
+      if (!err.userCancelled) Alert.alert(t('premium.purchaseFailed'), err.message ?? t('common.tryAgain'));
     } finally {
       setBusy(false);
     }
@@ -82,13 +84,13 @@ export default function PaywallScreen() {
     try {
       const restored = await restore();
       if (restored) {
-        Alert.alert('Restored', 'Your Pro access is back.');
+        Alert.alert(t('premium.restored'), t('premium.restoredMessage'));
         router.back();
       } else {
-        Alert.alert('Nothing to restore', 'No previous purchase was found for this Apple ID.');
+        Alert.alert(t('premium.nothingToRestore'), t('premium.noRestoreMessage'));
       }
     } catch {
-      Alert.alert('Restore failed', 'Please try again.');
+      Alert.alert(t('premium.restoreFailed'), t('common.tryAgain'));
     } finally {
       setBusy(false);
     }
@@ -102,14 +104,14 @@ export default function PaywallScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <AppText variant="headlineLg" center color={Dark.text} style={styles.headline}>
-          Your training,{'\n'}everywhere. Forever.
+          {t('premium.headline')}
         </AppText>
         <AppText variant="bodyMd" center color={Dark.muted}>
-          Unlock the full power of your training data.
+          {t('premium.tagline')}
         </AppText>
 
         <View style={styles.benefits}>
-          {BENEFITS.map((b) => (
+          {getBenefits(t).map((b) => (
             <View key={b.label} style={styles.benefitRow}>
               <Ionicons name={b.icon} size={20} color={Colors.primary} />
               <AppText variant="bodyMd" color={Dark.text} style={styles.benefitLabel}>
@@ -120,42 +122,42 @@ export default function PaywallScreen() {
         </View>
 
         <PlanCard
-          label="Monthly"
+          label={t('premium.monthly')}
           price={priceFor('monthly')}
-          suffix="/mo"
+          suffix={t('premium.monthlyPrice')}
           selected={selected === 'monthly'}
           onPress={() => setSelected('monthly')}
         />
         <PlanCard
-          label="Yearly"
+          label={t('premium.yearly')}
           price={priceFor('yearly')}
-          suffix="/yr"
-          badge={savePct != null && savePct > 0 ? `SAVE ${savePct}%` : undefined}
+          suffix={t('premium.yearlyPrice')}
+          badge={savePct != null && savePct > 0 ? t('premium.save', { savePct }) : undefined}
           note={trial ?? undefined}
           selected={selected === 'yearly'}
           onPress={() => setSelected('yearly')}
         />
         <PlanCard
-          label="Lifetime"
+          label={t('premium.lifetime')}
           price={priceFor('lifetime')}
-          note="Pay once"
+          note={t('premium.payOnce')}
           selected={selected === 'lifetime'}
           onPress={() => setSelected('lifetime')}
         />
 
         {!offerings?.current && (
           <AppText variant="labelMono" center color={Dark.muted} style={styles.storeNote}>
-            Prices load from the App Store — check your connection.
+            {t('premium.storeLoading')}
           </AppText>
         )}
 
         <Button
           label={
             isPro
-              ? 'You already have Pro'
+              ? t('premium.alreadyPro')
               : selected === 'yearly' && trial
-                ? `Start ${trial}`
-                : 'Continue'
+                ? t('premium.startTrial', { trial })
+                : t('premium.continue')
           }
           onPress={handlePurchase}
           disabled={busy || isPro || !packages[selected]}
@@ -165,15 +167,15 @@ export default function PaywallScreen() {
 
         <View style={styles.footer}>
           <TouchableOpacity onPress={handleRestore} disabled={busy}>
-            <AppText variant="labelMono" color={Dark.muted}>Restore Purchases</AppText>
+            <AppText variant="labelMono" color={Dark.muted}>{t('premium.restorePurchases')}</AppText>
           </TouchableOpacity>
           <AppText variant="labelMono" color={Dark.muted}>·</AppText>
           <TouchableOpacity onPress={() => Linking.openURL(TERMS_URL)}>
-            <AppText variant="labelMono" color={Dark.muted}>Terms</AppText>
+            <AppText variant="labelMono" color={Dark.muted}>{t('premium.terms')}</AppText>
           </TouchableOpacity>
           <AppText variant="labelMono" color={Dark.muted}>·</AppText>
           <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_URL)}>
-            <AppText variant="labelMono" color={Dark.muted}>Privacy</AppText>
+            <AppText variant="labelMono" color={Dark.muted}>{t('premium.privacy')}</AppText>
           </TouchableOpacity>
         </View>
       </ScrollView>

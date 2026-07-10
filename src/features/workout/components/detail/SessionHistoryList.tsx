@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
+import { dateFnsLocale } from '@/core/utils/date';
 import type { WorkoutLog } from '@/core/database/types';
 
 interface SessionHistoryListProps {
@@ -24,10 +25,10 @@ export function SessionHistoryList({ logs, accent, onEditSet }: SessionHistoryLi
         <View key={log.id} style={styles.card}>
           <View style={[styles.dateBlock, { backgroundColor: accent }]}>
             <AppText variant="headlineMd" color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>
-              {format(new Date(log.timestamp), 'dd')}
+              {format(new Date(log.timestamp), 'dd', { locale: dateFnsLocale() })}
             </AppText>
             <AppText variant="labelMono" upper color={Colors.white}>
-              {format(new Date(log.timestamp), 'MMM')}
+              {format(new Date(log.timestamp), 'MMM', { locale: dateFnsLocale() })}
             </AppText>
           </View>
 

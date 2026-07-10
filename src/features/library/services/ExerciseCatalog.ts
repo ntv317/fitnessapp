@@ -1,5 +1,7 @@
+import i18n from 'i18next';
 import type { CatalogExercise } from '../types';
 import { GROUP_ORDER, groupOf, type MuscleGroup } from '../utils/muscleGroups';
+import { catalogL10n } from './catalogL10n';
 
 // Bundled snapshot of free-exercise-db (public domain). Prefer importing this
 // module lazily (a deferred `require` inside a function, not a top-level
@@ -16,52 +18,87 @@ const CDN_BASE = 'https://cdn.jsdelivr.net/gh/yuhonas/free-exercise-db@main/exer
 const catalog = catalogJson as CatalogExercise[];
 
 let byId: Map<string, CatalogExercise> | null = null;
-let byGroup: Map<MuscleGroup, CatalogExercise[]> | null = null;
+let groupBuckets: Map<MuscleGroup, CatalogExercise[]> | null = null;
 
-function index(): { byId: Map<string, CatalogExercise>; byGroup: Map<MuscleGroup, CatalogExercise[]> } {
-  if (!byId || !byGroup) {
+function index(): { byId: Map<string, CatalogExercise>; groupBuckets: Map<MuscleGroup, CatalogExercise[]> } {
+  if (!byId || !groupBuckets) {
     byId = new Map(catalog.map((e) => [e.id, e]));
-    byGroup = new Map();
+    groupBuckets = new Map();
     for (const e of catalog) {
       const group = groupOf(e.primaryMuscles);
       if (!group) continue;
-      if (!byGroup.has(group)) byGroup.set(group, []);
-      byGroup.get(group)!.push(e);
+      if (!groupBuckets.has(group)) groupBuckets.set(group, []);
+      groupBuckets.get(group)!.push(e);
     }
-    for (const list of byGroup.values()) list.sort((a, b) => a.name.localeCompare(b.name));
   }
-  return { byId, byGroup };
+  return { byId, groupBuckets };
 }
 
+/** Catalog name in the active app language, falling back to English per exercise. */
+export function displayName(e: CatalogExercise): string {
+  return catalogL10n()?.[e.id]?.name ?? e.name;
+}
+
+/** Instructions in the active app language, falling back to English per exercise. */
+export function displayInstructions(e: CatalogExercise): string[] {
+  const localized = catalogL10n()?.[e.id]?.instructions;
+  return localized && localized.length > 0 ? localized : e.instructions;
+}
+
+function sortByDisplayName(list: CatalogExercise[]): CatalogExercise[] {
+  const lang = i18n.language;
+  return [...list].sort((a, b) => displayName(a).localeCompare(displayName(b), lang));
+}
+
+const sortedGroupCache = new Map<string, CatalogExercise[]>();
+const sortedAllCache = new Map<string, CatalogExercise[]>();
+
 export function getMuscleGroups(): { group: MuscleGroup; count: number }[] {
-  const { byGroup } = index();
-  return GROUP_ORDER.map((group) => ({ group, count: byGroup.get(group)?.length ?? 0 })).filter(
+  const { groupBuckets } = index();
+  return GROUP_ORDER.map((group) => ({ group, count: groupBuckets.get(group)?.length ?? 0 })).filter(
     (g) => g.count > 0,
   );
 }
 
 export function getByGroup(group: MuscleGroup): CatalogExercise[] {
-  return index().byGroup.get(group) ?? [];
+  const key = `${i18n.language}:${group}`;
+  let sorted = sortedGroupCache.get(key);
+  if (!sorted) {
+    sorted = sortByDisplayName(index().groupBuckets.get(group) ?? []);
+    sortedGroupCache.set(key, sorted);
+  }
+  return sorted;
 }
 
 export function getById(catalogId: string): CatalogExercise | undefined {
   return index().byId.get(catalogId);
 }
 
-let allSorted: CatalogExercise[] | null = null;
-
-/** Full catalog, name-sorted — for browsable pickers before the user types. */
+/** Full catalog, name-sorted in the active language — for browsable pickers before the user types. */
 export function getAll(): CatalogExercise[] {
-  if (!allSorted) {
-    allSorted = [...catalog].sort((a, b) => a.name.localeCompare(b.name));
+  const lang = i18n.language;
+  let sorted = sortedAllCache.get(lang);
+  if (!sorted) {
+    sorted = sortByDisplayName(catalog);
+    sortedAllCache.set(lang, sorted);
   }
-  return allSorted;
+  return sorted;
+}
+
+// Diacritic-insensitive matching, so Vietnamese typed without tones still hits
+// ("dua ta" matches "đưa tạ"); harmless for the other languages.
+function fold(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/g, 'd');
+}
+
+export function matchesQuery(e: CatalogExercise, query: string): boolean {
+  const q = fold(query.trim());
+  return !q || fold(displayName(e)).includes(q) || fold(e.name).includes(q);
 }
 
 export function search(query: string): CatalogExercise[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return [];
-  return getAll().filter((e) => e.name.toLowerCase().includes(q));
+  if (!query.trim()) return [];
+  return getAll().filter((e) => matchesQuery(e, query));
 }
 
 export function imageUrl(imagePath: string): string {

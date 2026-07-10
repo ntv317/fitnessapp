@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { weekStartOf } from '@/core/utils/date';
 
-export const DATABASE_VERSION = 12;
+export const DATABASE_VERSION = 13;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
@@ -347,6 +347,24 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
       await db.execAsync(`ALTER TABLE WorkoutSets ADD COLUMN note TEXT DEFAULT NULL;`);
     }
     version = 12;
+  }
+
+  if (version === 12) {
+    // Custom exercise editing: instructions + reference photos. Column checks
+    // make re-entry safe (see v9 comment).
+    const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(Exercises);');
+    if (!cols.some((c) => c.name === 'instructions')) {
+      await db.execAsync(`ALTER TABLE Exercises ADD COLUMN instructions TEXT DEFAULT NULL;`);
+    }
+    if (!cols.some((c) => c.name === 'image_uris')) {
+      await db.execAsync(`ALTER TABLE Exercises ADD COLUMN image_uris TEXT DEFAULT NULL;`);
+    }
+    // Every catalog_id-null row is a user/AI-imported exercise (see v7 comment) —
+    // flag them user-owned now that custom exercises are editable.
+    await db.execAsync(
+      `UPDATE Exercises SET is_custom = 1 WHERE catalog_id IS NULL AND is_custom = 0;`,
+    );
+    version = 13;
   }
 
   await db.execAsync(`PRAGMA user_version = ${version};`);

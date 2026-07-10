@@ -1,4 +1,5 @@
 import { View, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { AppText } from './AppText';
 import { Colors, Fonts, Spacing, Radius } from '@/core/theme';
 import { useUnit } from '@/core/context/UnitContext';
@@ -22,6 +23,7 @@ function chipColor(plateKg: number): string {
 }
 
 export function PlateChips({ plates, barWeight, totalWeight, exact, unit }: Props) {
+  const { t } = useTranslation();
   const { conversionHint, fromKg } = useUnit();
   if (plates.length === 0) return null;
 
@@ -33,7 +35,7 @@ export function PlateChips({ plates, barWeight, totalWeight, exact, unit }: Prop
       {/* Header: label left, total weight right */}
       <View style={styles.header}>
         <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.label}>
-          Plates per side
+          {t('plates.perSide')}
         </AppText>
         <AppText variant="labelMono" color={Colors.textSecondary}>
           {totalRounded} {unit}{hint ? `  ${hint}` : ''}
@@ -67,11 +69,11 @@ export function PlateChips({ plates, barWeight, totalWeight, exact, unit }: Prop
       {/* Footer: bar weight + nearest indicator */}
       <View style={styles.footer}>
         <AppText variant="labelMono" color={Colors.textMuted}>
-          Bar {barWeight} {unit}
+          {t('plates.barLabel')} {barWeight} {unit}
         </AppText>
         {!exact && (
           <AppText variant="labelMono" color={Colors.warning}>
-            · nearest
+            · {t('barbell.nearest')}
           </AppText>
         )}
       </View>

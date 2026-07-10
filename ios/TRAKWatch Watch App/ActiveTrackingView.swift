@@ -54,20 +54,20 @@ struct ActiveTrackingView: View {
 
     private var weightPrev: String {
         session.workoutState.suggestedWeight > 0
-            ? "\(Self.format(session.workoutState.suggestedWeight)) PREV"
-            : "WEIGHT"
+            ? String(format: String(localized: "%@ PREV"), Self.format(session.workoutState.suggestedWeight))
+            : String(localized: "WEIGHT")
     }
 
     private var repsPrev: String {
         session.workoutState.suggestedReps > 0
-            ? "\(session.workoutState.suggestedReps) PREV"
-            : "COUNT"
+            ? String(format: String(localized: "%lld PREV"), session.workoutState.suggestedReps)
+            : String(localized: "COUNT")
     }
 
     private var weightCard: some View {
         let accent = Color(hex: session.workoutState.accentColor)
         return InputCard(
-            leftLabel: "Weight (\(unitLabel))",
+            leftLabel: String(format: String(localized: "Weight (%@)"), unitLabel),
             rightLabel: weightPrev,
             rightLabelColor: session.workoutState.suggestedWeight > 0 ? accent : .secondary
         ) {
@@ -134,7 +134,7 @@ struct ActiveTrackingView: View {
     private var repsCard: some View {
         let accent = Color(hex: session.workoutState.accentColor)
         return InputCard(
-            leftLabel: "Reps",
+            leftLabel: String(localized: "Reps"),
             rightLabel: repsPrev,
             rightLabelColor: session.workoutState.suggestedReps > 0 ? accent : .secondary
         ) {

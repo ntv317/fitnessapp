@@ -1,6 +1,13 @@
+// Master switch for the whole paywall. While false, every Pro feature is free
+// for everyone, RevenueCat is never initialized (no API key needed), and all
+// paywall entry points hide themselves (they are gated behind !isPro). Flip
+// back to true — plus set REVENUECAT_API_KEY_IOS below — to re-enable paid
+// gating with no other code changes.
+export const PAYWALL_ENABLED = false;
+
 // Public SDK key from RevenueCat → Project Settings → API Keys (appl_...).
 // Empty string leaves the SDK unconfigured: isPro stays false and purchases
-// are disabled until a key is set.
+// are disabled until a key is set. Ignored while PAYWALL_ENABLED is false.
 export const REVENUECAT_API_KEY_IOS = '';
 
 export const ENTITLEMENT_PRO = 'pro';

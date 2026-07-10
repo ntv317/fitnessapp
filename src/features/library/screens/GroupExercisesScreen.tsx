@@ -4,9 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText } from '@/core/ui';
-import { getByGroup, imageUrl } from '../services/ExerciseCatalog';
+import { getById, imageUrl, matchesQuery } from '../services/ExerciseCatalog';
+import { useLibraryExercises, type LibraryExerciseView } from '../hooks/useLibraryExercise';
 import type { MuscleGroup } from '../utils/muscleGroups';
 import type { CatalogExercise } from '../types';
 import type { Exercise } from '@/core/database/types';
@@ -15,17 +17,24 @@ import { useExercises } from '@/features/workout/hooks/useExercises';
 const MARGIN = 20;
 
 type Row =
-  | { key: string; catalog: CatalogExercise; custom?: never }
-  | { key: string; custom: Exercise; catalog?: never };
+  | { key: string; catalog: CatalogExercise; view: LibraryExerciseView; custom?: never }
+  | { key: string; custom: Exercise; catalog?: never; view?: never };
 
 export default function GroupExercisesScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { group } = useLocalSearchParams<{ group: MuscleGroup }>();
   const [query, setQuery] = useState('');
   const { data: myExercises } = useExercises();
+  const merged = useLibraryExercises(group);
   const rows = useMemo<Row[]>(() => {
     const q = query.trim().toLowerCase();
-    const catalog = getByGroup(group).filter((e) => !q || e.name.toLowerCase().includes(q));
+    const catalogRows = merged.filter((v) => {
+      if (!q) return true;
+      if (v.name.toLowerCase().includes(q)) return true;
+      const cat = getById(v.catalogId);
+      return !!cat && matchesQuery(cat, query);
+    });
     // User's own exercises (AI-imported or custom) have no catalog link but
     // carry a muscle_group — list them alongside the bundled catalog.
     const custom = (myExercises ?? []).filter(
@@ -33,9 +42,9 @@ export default function GroupExercisesScreen() {
     );
     return [
       ...custom.map((e): Row => ({ key: `db-${e.id}`, custom: e })),
-      ...catalog.map((e): Row => ({ key: e.id, catalog: e })),
+      ...catalogRows.map((v): Row => ({ key: v.catalogId, view: v, catalog: getById(v.catalogId)! })),
     ];
-  }, [group, query, myExercises]);
+  }, [group, query, myExercises, merged]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -43,14 +52,14 @@ export default function GroupExercisesScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
-        <AppText variant="headlineMd">{group}</AppText>
+        <AppText variant="headlineMd">{t(`muscleGroups.${group}`)}</AppText>
         <View style={{ width: 24 }} />
       </View>
 
       <View style={styles.searchWrap}>
         <Ionicons name="search" size={18} color={Colors.textMuted} />
         <TextInput
-          placeholder={`Search ${group ?? ''}`.trim()}
+          placeholder={t('library.searchGroup', { group: t(`muscleGroups.${group}`) })}
           placeholderTextColor={Colors.textMuted}
           value={query}
           onChangeText={setQuery}
@@ -87,10 +96,10 @@ export default function GroupExercisesScreen() {
                 <View style={styles.thumb} />
               )}
               <View style={{ flex: 1 }}>
-                <AppText variant="bodyLg">{item.catalog.name}</AppText>
+                <AppText variant="bodyLg">{item.view.name}</AppText>
                 <AppText variant="labelMono" upper color={Colors.textMuted}>
-                  {item.catalog.mechanic === 'compound' ? 'Compound' : 'Isolation'}
-                  {item.catalog.equipment ? ` · ${item.catalog.equipment}` : ''}
+                  {t(item.view.isCompound ? 'exerciseMeta.mechanic.compound' : 'exerciseMeta.mechanic.isolation')}
+                  {item.catalog.equipment ? ` · ${t(`exerciseMeta.equipment.${item.catalog.equipment}`, { defaultValue: item.catalog.equipment })}` : ''}
                 </AppText>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
@@ -105,7 +114,7 @@ export default function GroupExercisesScreen() {
               <View style={{ flex: 1 }}>
                 <AppText variant="bodyLg">{item.custom.name}</AppText>
                 <AppText variant="labelMono" upper color={Colors.textMuted}>
-                  {item.custom.isCompound ? 'Compound' : 'Isolation'} · My exercise
+                  {t(item.custom.isCompound ? 'exerciseMeta.mechanic.compound' : 'exerciseMeta.mechanic.isolation')} · {t('library.myExercise')}
                 </AppText>
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />

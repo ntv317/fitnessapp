@@ -13,12 +13,14 @@ import type {
   PurchasesOfferings,
   PurchasesPackage,
 } from 'react-native-purchases';
-import { REVENUECAT_API_KEY_IOS, ENTITLEMENT_PRO, DEV_FORCE_PRO } from '@/core/config/revenuecat';
+import { REVENUECAT_API_KEY_IOS, ENTITLEMENT_PRO, DEV_FORCE_PRO, PAYWALL_ENABLED } from '@/core/config/revenuecat';
 
 // Removed spoofable entitlement mirror (see docs/SECURITY_REVIEW.md); purged on mount.
 const LEGACY_PRO_CACHE_KEY = '@fitness/isPro';
 
-const devForcePro = __DEV__ && DEV_FORCE_PRO;
+// While the paywall is disabled, everyone is Pro and RevenueCat is bypassed.
+const freeForAll = !PAYWALL_ENABLED;
+const proByDefault = freeForAll || (__DEV__ && DEV_FORCE_PRO);
 
 // Loaded lazily so jest (no native module) degrades to the cached value.
 type PurchasesModule = typeof import('react-native-purchases').default;
@@ -54,17 +56,24 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
     setIsPro(pro);
     // Single writer of the watch lock flag. Only fires once entitlement is
     // actually known, so a paying user never sees a cold-start lock flicker.
-    WatchSync?.updateState({ premiumRequired: !(pro || devForcePro) });
+    WatchSync?.updateState({ premiumRequired: !(pro || proByDefault) });
   }, []);
 
   useEffect(() => {
     AsyncStorage.removeItem(LEGACY_PRO_CACHE_KEY).catch(() => {});
 
+    // Paywall off: unlock the watch and skip RevenueCat entirely (no key needed).
+    if (freeForAll) {
+      WatchSync?.updateState({ premiumRequired: false });
+      setIsLoading(false);
+      return;
+    }
+
     const Purchases = getPurchases();
     if (!Purchases || !REVENUECAT_API_KEY_IOS) {
       // Entitlement can never be confirmed in this configuration, so assert
       // the watch lock instead of leaving its last state in place.
-      WatchSync?.updateState({ premiumRequired: !devForcePro });
+      WatchSync?.updateState({ premiumRequired: !proByDefault });
       setIsLoading(false);
       return;
     }
@@ -102,7 +111,7 @@ export function PremiumProvider({ children }: { children: React.ReactNode }) {
   }, [applyCustomerInfo]);
 
   const value = useMemo<PremiumContextValue>(
-    () => ({ isPro: devForcePro || isPro, isLoading, offerings, purchase, restore }),
+    () => ({ isPro: proByDefault || isPro, isLoading, offerings, purchase, restore }),
     [isPro, isLoading, offerings, purchase, restore],
   );
 

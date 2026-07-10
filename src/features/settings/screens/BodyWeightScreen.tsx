@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Polyline, Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, Fonts } from '@/core/theme';
 import { AppText, Button, StepperInput } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
@@ -44,6 +45,7 @@ function TrendChart({ points }: { points: number[] }) {
 
 export default function BodyWeightScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { unit, toKg, fromKg } = useUnit();
   const { data: entries = [] } = useBodyWeight();
   const logBodyWeight = useLogBodyWeight();
@@ -74,7 +76,7 @@ export default function BodyWeightScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <AppText variant="headlineMd" style={{ flex: 1, marginLeft: Spacing.sm }}>Body Weight</AppText>
+        <AppText variant="headlineMd" style={{ flex: 1, marginLeft: Spacing.sm }}>{t('bodyweight.title')}</AppText>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
@@ -82,11 +84,11 @@ export default function BodyWeightScreen() {
         <View style={styles.card}>
           <View style={[styles.accentBar, { backgroundColor: Colors.primary }]} />
           <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginBottom: Spacing.sm }}>
-            Today ({unit})
+            {t('common.today')} ({unit})
           </AppText>
           <StepperInput value={displayValue} onChangeText={setInput} step={0.1} min={0} placeholder="—" />
           <View style={{ marginTop: Spacing.md }}>
-            <Button label="Log Weight" onPress={handleLog} fullWidth />
+            <Button label={t('bodyweight.logWeight')} onPress={handleLog} fullWidth />
           </View>
         </View>
 
@@ -95,7 +97,7 @@ export default function BodyWeightScreen() {
           <View style={styles.card}>
             <View style={[styles.accentBar, { backgroundColor: Colors.tertiary }]} />
             <View style={styles.trendHead}>
-              <AppText variant="labelMono" upper color={Colors.textSecondary}>Trend</AppText>
+              <AppText variant="labelMono" upper color={Colors.textSecondary}>{t('bodyweight.trend')}</AppText>
               <AppText variant="labelMono" upper color={Colors.textMuted}>
                 {formatWeight(fromKg(chartMin))}–{formatWeight(fromKg(chartMax))} {unit}
               </AppText>
@@ -108,7 +110,7 @@ export default function BodyWeightScreen() {
         {entries.length > 0 && (
           <View style={styles.section}>
             <AppText variant="labelMono" upper color={Colors.textMuted} style={{ marginBottom: Spacing.sm }}>
-              History
+              {t('bodyweight.history')}
             </AppText>
             {entries.map((entry, i) => {
               const prev = entries[i + 1];

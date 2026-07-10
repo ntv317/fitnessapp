@@ -3,6 +3,7 @@ import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
@@ -12,17 +13,16 @@ import { useWeeklyProgress, useWeeklyStats } from '@/features/workout/hooks/useW
 import { useMuscleVolume } from '@/features/workout/hooks/useProAnalytics';
 import { dayProgress } from '@/features/workout/utils/progress';
 import { dayColorForTag } from '@/features/workout/utils/dayColor';
-import { weekStartOf } from '@/core/utils/date';
+import { weekStartOf, dateFnsLocale } from '@/core/utils/date';
 import { formatWeight } from '@/core/utils/format';
+
+import { format } from 'date-fns';
 
 const MARGIN = 20;
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 function rangeLabel(weekStart: number): string {
-  const fmt = (ms: number) =>
-    new Date(ms)
-      .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-      .replace(/,/g, '');
+  const fmt = (ms: number) => format(new Date(ms), 'MMM d', { locale: dateFnsLocale() });
   return `${fmt(weekStart)} – ${fmt(weekStart + 6 * 24 * 60 * 60 * 1000)}`;
 }
 
@@ -42,6 +42,7 @@ function DeltaChip({ current, previous }: { current: number; previous: number })
 
 export default function WeeklyStatsScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { unit, fromKg } = useUnit();
 
   const thisWeekStart = useMemo(() => weekStartOf(Date.now()), []);
@@ -70,7 +71,7 @@ export default function WeeklyStatsScreen() {
         <TouchableOpacity onPress={() => router.back()} hitSlop={10}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <AppText variant="headlineMd" style={{ flex: 1, marginLeft: Spacing.sm }}>This Week</AppText>
+        <AppText variant="headlineMd" style={{ flex: 1, marginLeft: Spacing.sm }}>{t('history.thisWeek')}</AppText>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
@@ -81,7 +82,7 @@ export default function WeeklyStatsScreen() {
         {/* Total volume */}
         <View style={styles.card}>
           <View style={[styles.accentBar, { backgroundColor: Colors.primary }]} />
-          <AppText variant="labelMono" upper color={Colors.textSecondary}>Total Volume</AppText>
+          <AppText variant="labelMono" upper color={Colors.textSecondary}>{t('stats.totalVolume')}</AppText>
           <View style={styles.volumeRow}>
             <AppText variant="headlineLg" style={{ fontSize: 32, lineHeight: 38 }}>
               {formatWeight(fromKg(volume))} {unit}
@@ -93,9 +94,11 @@ export default function WeeklyStatsScreen() {
         {/* Sets done vs plan */}
         <View style={styles.card}>
           <View style={[styles.accentBar, { backgroundColor: Colors.secondary ?? Colors.primary }]} />
-          <AppText variant="labelMono" upper color={Colors.textSecondary}>Sets Done</AppText>
+          <AppText variant="labelMono" upper color={Colors.textSecondary}>{t('stats.setsDone')}</AppText>
           <AppText variant="headlineLg" style={{ fontSize: 26, lineHeight: 32, marginTop: 2 }}>
-            {stats?.totalSets ?? 0}{planTotal > 0 ? ` / ${planTotal} planned` : ' sets'}
+            {planTotal > 0
+              ? t('stats.setsOfPlanned', { done: stats?.totalSets ?? 0, total: planTotal })
+              : t('history.sets', { count: stats?.totalSets ?? 0 })}
           </AppText>
           {planTotal > 0 && (
             <View style={styles.track}>
@@ -107,9 +110,11 @@ export default function WeeklyStatsScreen() {
         {/* Days trained */}
         <View style={styles.card}>
           <View style={[styles.accentBar, { backgroundColor: Colors.tertiary }]} />
-          <AppText variant="labelMono" upper color={Colors.textSecondary}>Days Trained</AppText>
+          <AppText variant="labelMono" upper color={Colors.textSecondary}>{t('stats.daysTrained')}</AppText>
           <AppText variant="headlineLg" style={{ fontSize: 26, lineHeight: 32, marginTop: 2 }}>
-            {stats?.daysTrained ?? 0}{allDays.length > 0 ? ` of ${allDays.length}` : ''} days
+            {allDays.length > 0
+              ? t('stats.daysOfTotal', { done: stats?.daysTrained ?? 0, total: allDays.length })
+              : t('stats.days', { count: stats?.daysTrained ?? 0 })}
           </AppText>
         </View>
 
@@ -117,7 +122,7 @@ export default function WeeklyStatsScreen() {
         {planProgress.length > 0 && (
           <View style={styles.section}>
             <AppText variant="labelMono" upper color={Colors.textMuted} style={{ marginBottom: Spacing.sm }}>
-              By Day
+              {t('stats.byDay')}
             </AppText>
             {planProgress.map(({ dayTag, progress }) => {
               const color = dayColorForTag(dayTag);
@@ -128,7 +133,7 @@ export default function WeeklyStatsScreen() {
                     <View style={styles.dayLabelRow}>
                       <AppText variant="bodyLg" style={{ fontFamily: Fonts.sansBold }}>{dayTag}</AppText>
                       <AppText variant="labelMono" upper color={progress.complete ? color : Colors.textMuted}>
-                        {progress.done} / {progress.total} sets
+                        {t('stats.setsProgress', { done: progress.done, total: progress.total })}
                       </AppText>
                     </View>
                     <View style={styles.track}>
@@ -144,24 +149,24 @@ export default function WeeklyStatsScreen() {
         {/* Muscle group balance (Pro) */}
         <View style={styles.section}>
           <AppText variant="labelMono" upper color={Colors.textMuted} style={{ marginBottom: Spacing.sm }}>
-            By Muscle Group
+            {t('stats.byMuscleGroup')}
           </AppText>
           {!isPro ? (
             <TouchableOpacity style={styles.lockRow} onPress={() => router.push('/paywall' as never)}>
               <Ionicons name="lock-closed" size={14} color={Colors.textMuted} />
               <AppText variant="bodyMd" color={Colors.textMuted}>
-                Muscle balance — LIFTREPS Pro
+                {t('stats.muscleBalancePro')}
               </AppText>
             </TouchableOpacity>
           ) : muscleVolume.length === 0 ? (
-            <AppText variant="bodyMd" color={Colors.textMuted}>No sets logged this week yet.</AppText>
+            <AppText variant="bodyMd" color={Colors.textMuted}>{t('stats.noSetsThisWeek')}</AppText>
           ) : (
             muscleVolume.map((m) => {
               const maxVol = muscleVolume[0].volumeKg || 1;
               return (
                 <View key={m.muscleGroup} style={styles.muscleRow}>
                   <View style={styles.dayLabelRow}>
-                    <AppText variant="bodyMd">{m.muscleGroup}</AppText>
+                    <AppText variant="bodyMd">{t(`muscleGroups.${m.muscleGroup}`, { defaultValue: m.muscleGroup })}</AppText>
                     <AppText variant="labelMono" color={Colors.textMuted}>
                       {formatWeight(fromKg(m.volumeKg))} {unit}
                     </AppText>
@@ -177,7 +182,7 @@ export default function WeeklyStatsScreen() {
 
         {lastVolume > 0 && (
           <AppText variant="labelMono" upper color={Colors.textMuted} center style={{ marginTop: Spacing.xl }}>
-            Last week: {formatWeight(fromKg(lastVolume))} {unit} · {lastStats?.totalSets ?? 0} sets
+            {t('stats.lastWeekSummary', { volume: formatWeight(fromKg(lastVolume)), unit, sets: lastStats?.totalSets ?? 0 })}
           </AppText>
         )}
       </ScrollView>

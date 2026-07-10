@@ -3,6 +3,7 @@ import { View, ScrollView, TouchableOpacity, StyleSheet, TextInput } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { AppText } from '@/core/ui/AppText';
 import { Colors, Spacing, Radius, Fonts, FontSize } from '@/core/theme';
 import { useBarbellConfig, ALL_PLATE_SIZES, ALL_PLATE_SIZES_LB, LB_TO_KG, KG_TO_LB } from '@/features/workout/hooks/useBarbellConfig';
@@ -13,6 +14,7 @@ const LB_BAR_PRESETS = [35, 45] as const;
 
 export default function BarbellSetupScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const { unit } = useUnit();
   const { config, saveConfig } = useBarbellConfig();
 
@@ -62,7 +64,7 @@ export default function BarbellSetupScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.title}>
-          Barbell Setup
+          {t('barbell.title')}
         </AppText>
         <View style={{ width: 24 }} />
       </View>
@@ -70,7 +72,7 @@ export default function BarbellSetupScreen() {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Bar Weight */}
         <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.sectionLabel}>
-          Bar Weight
+          {t('barbell.barWeight')}
         </AppText>
         <View style={styles.segmentRow}>
           {barPresets.map((b) => (
@@ -95,7 +97,7 @@ export default function BarbellSetupScreen() {
               variant="bodyMd"
               style={[styles.segmentText, isCustom && styles.segmentTextActive]}
             >
-              Custom
+              {t('barbell.custom')}
             </AppText>
           </TouchableOpacity>
         </View>
@@ -105,14 +107,14 @@ export default function BarbellSetupScreen() {
             value={customBar}
             onChangeText={setCustomBar}
             keyboardType="decimal-pad"
-            placeholder={isLbs ? 'e.g. 45' : 'e.g. 10'}
+            placeholder={t('barbell.example', { example: isLbs ? '45' : '10' })}
             placeholderTextColor={Colors.textMuted}
           />
         )}
 
         {/* Plates */}
         <AppText variant="labelMono" upper color={Colors.textMuted} style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>
-          Plates Available
+          {t('barbell.platesAvailable')}
         </AppText>
         <View style={styles.grid}>
           {plateSizes.map((p) => {
@@ -132,14 +134,14 @@ export default function BarbellSetupScreen() {
         </View>
 
         <AppText variant="labelMono" color={Colors.textMuted} style={styles.hint}>
-          Plates are always loaded in pairs — one per side.
+          {t('barbell.platesHint')}
         </AppText>
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity style={styles.saveBtn} onPress={handleSave}>
           <AppText variant="bodyMd" color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>
-            SAVE
+            {t('common.save')}
           </AppText>
         </TouchableOpacity>
       </View>

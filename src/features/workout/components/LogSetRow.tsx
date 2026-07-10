@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, FontSize, Radius } from '@/core/theme';
 
 interface Props {
@@ -12,12 +13,13 @@ interface Props {
 }
 
 export function LogSetRow({ index, reps, weight, onChangeReps, onChangeWeight, onRemove }: Props) {
+  const { t } = useTranslation();
   return (
     <View style={styles.row}>
-      <Text style={styles.label}>Set {index + 1}</Text>
+      <Text style={styles.label}>{t('workout.set')} {index + 1}</Text>
 
       <View style={styles.field}>
-        <Text style={styles.fieldLabel}>Reps</Text>
+        <Text style={styles.fieldLabel}>{t('workout.reps')}</Text>
         <TextInput
           style={styles.input}
           keyboardType="number-pad"

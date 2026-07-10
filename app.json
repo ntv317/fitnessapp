@@ -22,7 +22,8 @@
         "com.apple.developer.ubiquity-container-identifiers": ["iCloud.io.liftr.app"]
       },
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleLocalizations": ["en", "vi", "th", "ru"]
       }
     },
     "plugins": [

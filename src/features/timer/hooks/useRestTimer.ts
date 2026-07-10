@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import i18n from 'i18next';
 
 /**
  * Background-resilient rest timer.
@@ -56,8 +57,8 @@ export function useRestTimer() {
     await cancelNotif();
     const id = await Notifications.scheduleNotificationAsync({
       content: {
-        title: 'Rest Complete 💪',
-        body: 'Time for your next set!',
+        title: i18n.t('timer.restCompleteTitle'),
+        body: i18n.t('timer.restCompleteBody'),
         sound: true,
       },
       trigger: { seconds: remainingSeconds, type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL },

@@ -3,18 +3,22 @@ import { View, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator } fro
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing } from '@/core/theme';
 import { AppText, Button } from '@/core/ui';
 import { ImageCarousel } from '../components/ImageCarousel';
 import { getById } from '../services/ExerciseCatalog';
+import { useLibraryExercise } from '../hooks/useLibraryExercise';
 import { useExerciseByCatalogId, useUpsertExercise } from '@/features/workout/hooks/useExercises';
 
 const MARGIN = 20;
 
 export default function LibraryExerciseScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { catalogId } = useLocalSearchParams<{ catalogId: string }>();
   const catalogExercise = useMemo(() => getById(catalogId), [catalogId]);
+  const libraryExercise = useLibraryExercise(catalogId);
   const { data: linkedExercise, isLoading } = useExerciseByCatalogId(catalogId);
   const { mutateAsync: upsertExercise, isPending } = useUpsertExercise();
 
@@ -27,13 +31,17 @@ export default function LibraryExerciseScreen() {
           </TouchableOpacity>
         </View>
         <View style={styles.notFound}>
-          <AppText variant="bodyMd" color={Colors.textMuted} center>Exercise not found.</AppText>
+          <AppText variant="bodyMd" color={Colors.textMuted} center>{t('library.exerciseNotFound')}</AppText>
         </View>
       </SafeAreaView>
     );
   }
 
   const handleStart = async () => {
+    if (linkedExercise) {
+      router.push({ pathname: '/exercise/[id]', params: { id: String(linkedExercise.id) } } as never);
+      return;
+    }
     const exercise = await upsertExercise({
       name: catalogExercise.name,
       isCompound: catalogExercise.mechanic === 'compound',
@@ -57,20 +65,29 @@ export default function LibraryExerciseScreen() {
           <Ionicons name="chevron-back" size={24} color={Colors.textPrimary} />
         </TouchableOpacity>
         <AppText variant="headlineMd" style={{ flex: 1, marginLeft: Spacing.sm }} numberOfLines={1}>
-          {catalogExercise.name}
+          {libraryExercise?.name ?? catalogExercise.name}
         </AppText>
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/library/exercise-form', params: { catalogId } } as never)}
+          hitSlop={10}
+        >
+          <Ionicons name="pencil" size={20} color={Colors.textPrimary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.scroll}>
-        <ImageCarousel images={catalogExercise.images} instructions={catalogExercise.instructions} />
+        <ImageCarousel
+          images={catalogExercise.images}
+          instructions={libraryExercise?.instructions ?? catalogExercise.instructions}
+        />
 
         <View style={styles.metaRow}>
           <AppText variant="labelMono" upper color={Colors.textMuted}>
-            {catalogExercise.mechanic === 'compound' ? 'Compound' : 'Isolation'}
+            {t(catalogExercise.mechanic === 'compound' ? 'exerciseMeta.mechanic.compound' : 'exerciseMeta.mechanic.isolation')}
           </AppText>
           {catalogExercise.equipment && (
             <AppText variant="labelMono" upper color={Colors.textMuted}>
-              {catalogExercise.equipment}
+              {t(`exerciseMeta.equipment.${catalogExercise.equipment}`, { defaultValue: catalogExercise.equipment })}
             </AppText>
           )}
         </View>
@@ -79,10 +96,10 @@ export default function LibraryExerciseScreen() {
           {isLoading ? (
             <ActivityIndicator color={Colors.primary} />
           ) : linkedExercise ? (
-            <Button label="View history" onPress={handleView} variant="primary" />
+            <Button label={t('library.viewHistory')} onPress={handleView} variant="primary" />
           ) : (
             <Button
-              label={isPending ? 'Starting…' : 'Start logging'}
+              label={isPending ? t('library.starting') : t('library.startLogging')}
               onPress={handleStart}
               variant="primary"
               disabled={isPending}

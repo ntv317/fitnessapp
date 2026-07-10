@@ -8,6 +8,7 @@ import { PlateChips } from '@/core/ui/PlateChips';
 import { useUnit } from '@/core/context/UnitContext';
 import { useBarbellConfig } from '../../hooks/useBarbellConfig';
 import { calculatePlates } from '@/core/utils/plateCalculator';
+import { dateFnsLocale } from '@/core/utils/date';
 
 export interface EditingSetData {
   logId: number;
@@ -145,7 +146,7 @@ export function SetInputCard({
           <View style={styles.editHeaderLeft}>
             <Ionicons name="calendar-outline" size={16} color={Colors.white} />
             <AppText variant="labelMono" upper color={Colors.white}>
-              {format(new Date(editing.timestamp), 'd MMM yyyy')}
+              {format(new Date(editing.timestamp), 'd MMM yyyy', { locale: dateFnsLocale() })}
             </AppText>
           </View>
           <TouchableOpacity onPress={onCancelEdit} hitSlop={10}>
