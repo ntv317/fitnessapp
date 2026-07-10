@@ -48,6 +48,10 @@
 	<string>12.0</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow LIFTREPS to take reference photos for your exercises.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allow LIFTREPS to add reference photos to your exercises.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

@@ -71,6 +71,12 @@ export class WorkoutRepository implements IWorkoutRepository {
     } catch {
       imageUris = null;
     }
+    let secondaryMuscleGroups: string[] | null = null;
+    try {
+      secondaryMuscleGroups = row.secondary_muscle_groups ? JSON.parse(row.secondary_muscle_groups) : null;
+    } catch {
+      secondaryMuscleGroups = null;
+    }
     return {
       id: row.id,
       name: row.name,
@@ -81,6 +87,7 @@ export class WorkoutRepository implements IWorkoutRepository {
       targetSets: row.plan_target_sets ?? row.target_sets,
       catalogId: row.catalog_id ?? null,
       muscleGroup: row.muscle_group ?? null,
+      secondaryMuscleGroups,
       instructions,
       imageUris,
       repMin: row.rep_min ?? null,
@@ -211,6 +218,7 @@ export class WorkoutRepository implements IWorkoutRepository {
     targetSets?: number;
     catalogId: string | null;
     muscleGroup?: string | null;
+    secondaryMuscleGroups?: string[] | null;
     instructions?: string[] | null;
     imageFilenames?: string[] | null;
   }): Promise<number> {
@@ -218,10 +226,14 @@ export class WorkoutRepository implements IWorkoutRepository {
     const REST_ISOLATION = 75;
     const instructions = params.instructions ? JSON.stringify(params.instructions) : null;
     const imageUris = params.imageFilenames ? JSON.stringify(params.imageFilenames) : null;
+    const secondary =
+      params.secondaryMuscleGroups && params.secondaryMuscleGroups.length > 0
+        ? JSON.stringify(params.secondaryMuscleGroups)
+        : null;
     try {
       const result = await this.db.runAsync(
-        `INSERT INTO Exercises (name, default_rest_seconds, is_compound, is_custom, target_sets, catalog_id, muscle_group, instructions, image_uris)
-         VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?);`,
+        `INSERT INTO Exercises (name, default_rest_seconds, is_compound, is_custom, target_sets, catalog_id, muscle_group, secondary_muscle_groups, instructions, image_uris)
+         VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, ?);`,
         [
           params.name,
           params.isCompound ? REST_COMPOUND : REST_ISOLATION,
@@ -229,6 +241,7 @@ export class WorkoutRepository implements IWorkoutRepository {
           params.targetSets ?? 3,
           params.catalogId,
           params.muscleGroup ?? null,
+          secondary,
           instructions,
           imageUris,
         ],
@@ -256,6 +269,7 @@ export class WorkoutRepository implements IWorkoutRepository {
       targetSets: input.targetSets,
       catalogId: null,
       muscleGroup: input.muscleGroup,
+      secondaryMuscleGroups: input.secondaryMuscleGroups,
       instructions: input.instructions,
       imageFilenames: input.imageFilenames,
     });
@@ -282,6 +296,14 @@ export class WorkoutRepository implements IWorkoutRepository {
     if (patch.muscleGroup !== undefined) {
       sets.push('muscle_group = ?');
       params.push(patch.muscleGroup);
+    }
+    if (patch.secondaryMuscleGroups !== undefined) {
+      sets.push('secondary_muscle_groups = ?');
+      params.push(
+        patch.secondaryMuscleGroups && patch.secondaryMuscleGroups.length > 0
+          ? JSON.stringify(patch.secondaryMuscleGroups)
+          : null,
+      );
     }
     if (patch.instructions !== undefined) {
       sets.push('instructions = ?');
@@ -314,6 +336,7 @@ export class WorkoutRepository implements IWorkoutRepository {
       targetSets: patch.targetSets,
       catalogId,
       muscleGroup: patch.muscleGroup,
+      secondaryMuscleGroups: patch.secondaryMuscleGroups,
       instructions: patch.instructions,
       imageFilenames: patch.imageFilenames,
     });
@@ -330,7 +353,7 @@ export class WorkoutRepository implements IWorkoutRepository {
       await this.db.runAsync(
         `UPDATE Exercises SET
            name = ?, is_compound = ?, muscle_group = ?,
-           instructions = NULL, image_uris = NULL, is_custom = 0
+           secondary_muscle_groups = NULL, instructions = NULL, image_uris = NULL, is_custom = 0
          WHERE id = ?;`,
         [canonical.name, canonical.isCompound ? 1 : 0, canonical.muscleGroup, id],
       );

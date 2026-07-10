@@ -33,6 +33,13 @@
         {
           "enableFTS": false
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to add reference photos to your exercises.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to take reference photos for your exercises."
+        }
       ]
     ],
     "experiments": {

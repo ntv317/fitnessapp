@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { Colors, Radius, Spacing } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { imageUrl } from '../services/ExerciseCatalog';
+import { isResolvableUri } from '../utils/imageStore';
 
 interface ImageCarouselProps {
   images: string[];
@@ -32,7 +33,7 @@ export function ImageCarousel({ images, instructions }: ImageCarouselProps) {
         {images.map((img) => (
           <Image
             key={img}
-            source={{ uri: imageUrl(img) }}
+            source={{ uri: isResolvableUri(img) ? img : imageUrl(img) }}
             style={{ width, height: width * 0.85 }}
             contentFit="contain"
             cachePolicy="disk"

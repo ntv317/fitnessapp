@@ -16,6 +16,7 @@ function makeExercise(overrides: Partial<Exercise> = {}): Exercise {
     targetSets: 3,
     catalogId: CATALOG_ID,
     muscleGroup: null,
+    secondaryMuscleGroups: null,
     instructions: null,
     imageUris: null,
     repMin: null,

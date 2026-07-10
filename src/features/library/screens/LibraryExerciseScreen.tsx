@@ -77,7 +77,11 @@ export default function LibraryExerciseScreen() {
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <ImageCarousel
-          images={catalogExercise.images}
+          images={
+            libraryExercise?.imageUris && libraryExercise.imageUris.length > 0
+              ? libraryExercise.imageUris
+              : catalogExercise.images
+          }
           instructions={libraryExercise?.instructions ?? catalogExercise.instructions}
         />
 

@@ -11,6 +11,7 @@ export interface ExerciseRow {
   target_sets: number;
   catalog_id: string | null;
   muscle_group: string | null;
+  secondary_muscle_groups: string | null;
   instructions: string | null;
   image_uris: string | null;
 }
@@ -68,6 +69,8 @@ export interface Exercise {
   targetSets: number;
   catalogId: string | null;
   muscleGroup: string | null;
+  /** Additional worked muscle groups beyond the primary `muscleGroup`. Display metadata only. */
+  secondaryMuscleGroups: string[] | null;
   instructions: string[] | null;
   imageUris: string[] | null;
   /** Active plan's rep range for this exercise; null outside a plan context. */
@@ -162,6 +165,7 @@ export interface CustomExerciseInput {
   isCompound: boolean;
   targetSets?: number;
   muscleGroup?: string | null;
+  secondaryMuscleGroups?: string[] | null;
   instructions?: string[] | null;
   imageFilenames?: string[] | null;
 }
@@ -172,6 +176,7 @@ export interface ExercisePatch {
   isCompound?: boolean;
   targetSets?: number;
   muscleGroup?: string | null;
+  secondaryMuscleGroups?: string[] | null;
   instructions?: string[] | null;
   imageFilenames?: string[] | null;
 }

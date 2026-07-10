@@ -5,7 +5,8 @@
     "share": "Chia sẻ",
     "dbInitFailed": "Khởi tạo CSDL thất bại: {{error}}",
     "save": "LƯU",
-    "today": "Hôm nay"
+    "today": "Hôm nay",
+    "done": "Xong"
   },
   "settings": {
     "title": "Cài đặt",
@@ -318,7 +319,15 @@
       "deleteBlockedPlanned": "Không thể xoá bài tập này — đang được dùng trong một giáo án.",
       "resetToDefault": "Đặt lại mặc định",
       "resetConfirmTitle": "Đặt lại mặc định",
-      "resetConfirmBody": "Thao tác này sẽ bỏ các chỉnh sửa của bạn và khôi phục tên, nhóm cơ và hướng dẫn gốc từ thư viện."
+      "resetConfirmBody": "Thao tác này sẽ bỏ các chỉnh sửa của bạn và khôi phục tên, nhóm cơ và hướng dẫn gốc từ thư viện.",
+      "photos": "Ảnh",
+      "addPhoto": "Thêm ảnh",
+      "takePhoto": "Chụp ảnh",
+      "chooseFromLibrary": "Chọn từ thư viện",
+      "photoPermissionNeeded": "Cần cấp quyền để thêm ảnh.",
+      "photoError": "Không thể thêm ảnh đó.",
+      "muscleGroupHint": "Chọn tất cả nhóm phù hợp. Nhóm đầu tiên là nhóm chính.",
+      "primaryMuscle": "Chính"
     }
   },
   "muscleGroups": {

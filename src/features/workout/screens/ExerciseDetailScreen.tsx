@@ -317,15 +317,31 @@ export default function ExerciseDetailScreen() {
   const isExactCatalog =
     !!catalogExercise &&
     (!!exercise?.catalogId || normalizeName(catalogExercise.name) === normalizeName(exercise?.name ?? ''));
+  // A user edit to muscle groups wins over the catalog's muscles, so saved
+  // changes actually show here. Falls back to the catalog when the exercise
+  // carries no group of its own.
+  const muscleLabel = exercise?.muscleGroup
+    ? [exercise.muscleGroup, ...(exercise.secondaryMuscleGroups ?? [])].join(' / ')
+    : catalogExercise
+      ? [...catalogExercise.primaryMuscles, ...catalogExercise.secondaryMuscles].slice(0, 3).join(' / ')
+      : null;
   const metaLabel = [
     exercise?.isCompound ? 'Compound' : 'Isolation',
-    catalogExercise
-      ? [...catalogExercise.primaryMuscles, ...catalogExercise.secondaryMuscles].slice(0, 3).join(' / ')
-      : null,
+    muscleLabel,
     isExactCatalog ? catalogExercise?.equipment ?? null : null,
   ]
     .filter(Boolean)
     .join(' • ');
+  // Prefer the exercise's own reference photos / instructions (set in the edit
+  // form) over the bundled catalog's.
+  const detailImages =
+    exercise?.imageUris && exercise.imageUris.length > 0
+      ? exercise.imageUris
+      : catalogExercise?.images ?? [];
+  const detailInstructions =
+    exercise?.instructions && exercise.instructions.length > 0
+      ? exercise.instructions
+      : catalogExercise?.instructions;
 
   // Auto-advance targets the next INCOMPLETE exercise of the day (wrapping back
   // to skipped ones), so the summary only appears once every exercise is done.
@@ -777,9 +793,9 @@ export default function ExerciseDetailScreen() {
           )}
         </View>
 
-        {catalogExercise && (
+        {detailImages.length > 0 && (
           <View style={styles.carouselWrap}>
-            <ImageCarousel images={catalogExercise.images} instructions={catalogExercise.instructions} />
+            <ImageCarousel images={detailImages} instructions={detailInstructions} />
           </View>
         )}
 

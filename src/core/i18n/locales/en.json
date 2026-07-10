@@ -5,7 +5,8 @@
     "save": "SAVE",
     "today": "Today",
     "tryAgain": "Please try again.",
-    "share": "Share"
+    "share": "Share",
+    "done": "Done"
   },
   "tabs": {
     "exercises": "Exercises",
@@ -159,7 +160,15 @@
       "deleteBlockedPlanned": "This exercise can't be deleted — it's used in a plan.",
       "resetToDefault": "Reset to Default",
       "resetConfirmTitle": "Reset to Default",
-      "resetConfirmBody": "This discards your edits and restores the catalog's original name, muscle group, and instructions."
+      "resetConfirmBody": "This discards your edits and restores the catalog's original name, muscle group, and instructions.",
+      "photos": "Photos",
+      "addPhoto": "Add Photo",
+      "takePhoto": "Take Photo",
+      "chooseFromLibrary": "Choose from Library",
+      "photoPermissionNeeded": "Permission is needed to add a photo.",
+      "photoError": "Could not add that photo.",
+      "muscleGroupHint": "Select all that apply. The first is the primary group.",
+      "primaryMuscle": "Primary"
     }
   },
   "muscleGroups": {

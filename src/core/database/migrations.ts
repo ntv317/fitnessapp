@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { weekStartOf } from '@/core/utils/date';
 
-export const DATABASE_VERSION = 13;
+export const DATABASE_VERSION = 14;
 
 export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
   const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
@@ -365,6 +365,17 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
       `UPDATE Exercises SET is_custom = 1 WHERE catalog_id IS NULL AND is_custom = 0;`,
     );
     version = 13;
+  }
+
+  if (version === 13) {
+    // Additional worked muscle groups beyond the primary muscle_group, stored as
+    // a JSON array. Metadata only — muscle_group stays the single grouping/stats
+    // key. Column check makes re-entry safe (see v12 comment).
+    const cols = await db.getAllAsync<{ name: string }>('PRAGMA table_info(Exercises);');
+    if (!cols.some((c) => c.name === 'secondary_muscle_groups')) {
+      await db.execAsync(`ALTER TABLE Exercises ADD COLUMN secondary_muscle_groups TEXT DEFAULT NULL;`);
+    }
+    version = 14;
   }
 
   await db.execAsync(`PRAGMA user_version = ${version};`);

@@ -40,3 +40,13 @@ export function groupOf(primaryMuscles: string[]): MuscleGroup | null {
   }
   return null;
 }
+
+/** All distinct display groups a set of muscles maps to, in GROUP_ORDER. */
+export function groupsOf(muscles: string[]): MuscleGroup[] {
+  const found = new Set<string>();
+  for (const muscle of muscles) {
+    const group = MUSCLE_TO_GROUP[muscle];
+    if (group) found.add(group);
+  }
+  return GROUP_ORDER.filter((g) => found.has(g));
+}

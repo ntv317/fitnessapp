@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useExercises } from '@/features/workout/hooks/useExercises';
 import { getById, getByGroup, displayName, displayInstructions } from '../services/ExerciseCatalog';
-import { groupOf, type MuscleGroup } from '../utils/muscleGroups';
+import { groupOf, groupsOf, type MuscleGroup } from '../utils/muscleGroups';
 import type { CatalogExercise } from '../types';
 import type { Exercise } from '@/core/database/types';
 
@@ -10,6 +10,7 @@ export interface LibraryExerciseView {
   name: string;
   isCompound: boolean;
   muscleGroup: string | null;
+  secondaryMuscleGroups: string[] | null;
   instructions: string[];
   imageUris: string[] | null;
   catalogImages: string[];
@@ -24,11 +25,16 @@ export interface LibraryExerciseView {
  */
 export function mergeLibraryExercise(cat: CatalogExercise, dbRow: Exercise | undefined): LibraryExerciseView {
   const overridden = !!dbRow?.isCustom;
+  const primary = overridden ? dbRow!.muscleGroup : groupOf(cat.primaryMuscles);
+  const catalogSecondary = groupsOf([...cat.primaryMuscles, ...cat.secondaryMuscles]).filter(
+    (g) => g !== primary,
+  );
   return {
     catalogId: cat.id,
     name: overridden ? dbRow!.name : displayName(cat),
     isCompound: overridden ? dbRow!.isCompound : cat.mechanic === 'compound',
-    muscleGroup: overridden ? dbRow!.muscleGroup : groupOf(cat.primaryMuscles),
+    muscleGroup: primary,
+    secondaryMuscleGroups: overridden ? dbRow!.secondaryMuscleGroups : catalogSecondary,
     instructions: dbRow?.instructions ?? displayInstructions(cat),
     imageUris: dbRow?.imageUris ?? null,
     catalogImages: cat.images,
