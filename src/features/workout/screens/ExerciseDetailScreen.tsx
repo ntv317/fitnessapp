@@ -386,7 +386,7 @@ export default function ExerciseDetailScreen() {
   todayBoundary.setHours(0, 0, 0, 0);
   const startOfToday = todayBoundary.getTime();
   const todayLog = history.find((l) => l.timestamp >= startOfToday && (l.dayTag ?? null) === dayTag);
-  const priorSession = history.find((l) => l !== todayLog);
+  const priorSession = history.find((l) => l !== todayLog && (l.dayTag ?? null) === dayTag);
   // detectPR compares today's sets against history — once today's own sets are
   // saved and refetched, `history` includes them too, which would make a PR
   // impossible to ever detect (today always ties itself). Compare against
@@ -448,10 +448,12 @@ export default function ExerciseDetailScreen() {
 
   const handleWatchSetRef = useRef<(p: WatchSetLogged) => void>(() => {});
   const handleSkipRef = useRef<() => void>(() => {});
+  const handleFinishRef = useRef<() => void>(() => {});
 
   const { sendWorkoutState, sendMessage } = useWatchSync({
     onSetLogged: useCallback((p: WatchSetLogged) => handleWatchSetRef.current(p), []),
     onSkipRest: useCallback(() => handleSkipRef.current(), []),
+    onFinishWorkout: useCallback(() => handleFinishRef.current(), []),
   });
 
   const weightStep = unit === 'kg' ? 2.5 : 5;
@@ -625,6 +627,29 @@ export default function ExerciseDetailScreen() {
       const isPR = detectPR(todaySetsRef.current, priorHistory);
       addExerciseResult({ name: exercise?.name ?? '', volumeKg, isPR });
     }
+    // Nothing else pushes a cleared state from the phone — without this the
+    // watch's last mid-workout snapshot can persist in its application
+    // context and get resurrected on a cold start within the 4h window.
+    // Mirrors exactly what the watch's own finishWorkoutLocally() resets.
+    sendWorkoutState({
+      exerciseName: '',
+      setNumber: 1,
+      totalSets: 1,
+      suggestedReps: 0,
+      suggestedWeight: 0,
+      restDuration: 0,
+      isResting: false,
+      isWorkoutComplete: false,
+      totalVolume: 0,
+      elapsedMinutes: 0,
+      workoutName: '',
+      unit,
+      weightStep,
+      plateBreakdown: [],
+      showWeightConversion: showConversion,
+      showPlateBreakdown,
+      accentColor: accent,
+    });
     const session = getSession();
     if (session && session.exercises.length > 0) {
       router.replace({
@@ -636,7 +661,12 @@ export default function ExerciseDetailScreen() {
     } else {
       router.replace('/');
     }
-  }, [priorHistory, exercise, accent, params.day]);
+  }, [priorHistory, exercise, accent, params.day, sendWorkoutState, unit, weightStep, showConversion, showPlateBreakdown]);
+
+  // Watch "Finish" (from the summary screen) routes here too, so a
+  // watch-initiated finish flushes the session and navigates on the phone —
+  // previously this event was emitted natively but never subscribed to.
+  handleFinishRef.current = handleFinish;
 
   const handleRestTimerMenu = useCallback(() => {
     if (!isPro) {

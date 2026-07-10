@@ -121,6 +121,7 @@ export function useClearHistory() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['exercises'] });
       qc.invalidateQueries({ queryKey: ['history'] });
+      qc.invalidateQueries({ queryKey: ['weekly'] });
       qc.invalidateQueries({ queryKey: ['stats'] });
     },
   });
@@ -135,6 +136,7 @@ export function useClearAllData() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['exercises'] });
       qc.invalidateQueries({ queryKey: ['history'] });
+      qc.invalidateQueries({ queryKey: ['weekly'] });
       qc.invalidateQueries({ queryKey: ['stats'] });
       qc.invalidateQueries({ queryKey: ['bodyweight'] });
     },

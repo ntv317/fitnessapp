@@ -14,8 +14,8 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase): Promise<void> {
       CREATE TABLE IF NOT EXISTS Exercises (
         id                   INTEGER PRIMARY KEY AUTOINCREMENT,
         name                 TEXT    NOT NULL UNIQUE,
-        -- 150s (2:30) for compound, 90s (1:30) for isolation; set per-exercise on insert
-        default_rest_seconds INTEGER NOT NULL DEFAULT 90,
+        -- 150s (2:30) for compound, 75s (1:15) for isolation; set per-exercise on insert
+        default_rest_seconds INTEGER NOT NULL DEFAULT 150,
         is_compound          INTEGER NOT NULL DEFAULT 0 CHECK (is_compound IN (0, 1)),
         is_custom            INTEGER NOT NULL DEFAULT 0 CHECK (is_custom IN (0, 1))
       );

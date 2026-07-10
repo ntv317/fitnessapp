@@ -51,10 +51,12 @@ interface UseWatchSyncOptions {
   onSetLogged?: (payload: WatchSetLogged) => void | Promise<void>;
   /** Fired when the user skips rest from the watch. */
   onSkipRest?: () => void;
+  /** Fired when the user taps "Finish" on the watch's summary screen. */
+  onFinishWorkout?: () => void;
 }
 
 export function useWatchSync(options: UseWatchSyncOptions = {}) {
-  const { onSetLogged, onSkipRest } = options;
+  const { onSetLogged, onSkipRest, onFinishWorkout } = options;
   const { isPro, isLoading } = usePremium();
 
   // Keep the latest callbacks in refs so the listeners don't churn.
@@ -62,6 +64,8 @@ export function useWatchSync(options: UseWatchSyncOptions = {}) {
   onSetLoggedRef.current = onSetLogged;
   const onSkipRestRef = useRef(onSkipRest);
   onSkipRestRef.current = onSkipRest;
+  const onFinishWorkoutRef = useRef(onFinishWorkout);
+  onFinishWorkoutRef.current = onFinishWorkout;
 
   // Blocked only once the user is definitively non-Pro; while the entitlement
   // is resolving we still send/accept so a Pro watch never stalls or drops sets.
@@ -81,9 +85,14 @@ export function useWatchSync(options: UseWatchSyncOptions = {}) {
       if (blockedRef.current) return;
       onSkipRestRef.current?.();
     });
+    const finishSub = WatchSync.addListener('onFinishWorkout', () => {
+      if (blockedRef.current) return;
+      onFinishWorkoutRef.current?.();
+    });
     return () => {
       setSub.remove();
       skipSub.remove();
+      finishSub.remove();
     };
   }, []);
 

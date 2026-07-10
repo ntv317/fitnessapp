@@ -5,8 +5,15 @@ import { GROUP_ORDER, groupOf, type MuscleGroup } from '@/features/library/utils
 export function normalizeName(name: string): string {
   return name
     .toLowerCase()
+    // Fold diacritics (NFD + strip combining marks) so accented Latin script
+    // still normalizes sensibly, same technique as ExerciseCatalog.fold().
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/đ/g, 'd')
     // Punctuation → space (not removed) so "Bench-Press" matches "Bench Press".
-    .replace(/[^a-z0-9\s]/g, ' ')
+    // Unicode-aware: strips punctuation/symbols but keeps letters from any
+    // script (Cyrillic, Thai, …) instead of collapsing them to "".
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -37,7 +44,7 @@ const STOPWORDS = new Set(['the', 'a', 'an', 'of', 'with', 'and', 'to', 'for', '
 const MINOR_EXTRAS = new Set([
   'grip', 'medium', 'wide', 'close', 'narrow', 'standard', 'regular',
   'alternate', 'alternating', 'single', 'one', 'two', 'arm', 'arms',
-  'side', 'seated', 'standing',
+  'side',
 ]);
 
 function tokenize(name: string): string[] {

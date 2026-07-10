@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -42,11 +42,16 @@ export function useRestoreBackup() {
   const queryClient = useQueryClient();
   const { isPro } = usePremium();
   const { suspendDatabase, reloadDatabase } = useDatabaseLifecycle();
+  // Only reload in onSettled if suspendDatabase actually ran — a blocked
+  // (non-Pro) attempt never suspended anything, so it shouldn't pay for a
+  // full DB reload it didn't cause.
+  const suspendedRef = useRef(false);
   return useMutation({
     mutationFn: (fileName: string) => {
       if (!isPro) throw new Error('LIFTREPS Pro required');
       // Quiesce writers before the file swap; reloadDatabase in onSettled
       // reopens whichever DB is on disk (restored, or the old one on failure).
+      suspendedRef.current = true;
       suspendDatabase();
       return restoreBackup(fileName);
     },
@@ -54,7 +59,10 @@ export function useRestoreBackup() {
       queryClient.clear();
     },
     onSettled: () => {
-      reloadDatabase();
+      if (suspendedRef.current) {
+        suspendedRef.current = false;
+        reloadDatabase();
+      }
     },
   });
 }

@@ -133,7 +133,12 @@ export function SetInputCard({
     const rpe = rpeRaw >= 1 && rpeRaw <= 10 ? rpeRaw : null;
     const note = noteText.trim() || null;
     if (editing) {
-      onUpdate(typedWeightKg, typedReps, rpe, note);
+      // If the weight field was never touched, save the original kg value
+      // instead of the round-tripped typedWeightKg — fromKg/toKg aren't a
+      // true inverse in lb mode (fromKg rounds to the nearest 0.5), so a
+      // note-only edit would otherwise silently drift the stored weight.
+      const weightKg = touchedSinceSeedRef.current ? typedWeightKg : editing.weightKg;
+      onUpdate(weightKg, typedReps, rpe, note);
     } else {
       onLog(typedWeightKg, typedReps, rpe, note);
     }

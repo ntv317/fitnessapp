@@ -6,6 +6,7 @@ struct ActiveTrackingView: View {
     @State private var weight: Double = 0
     @State private var reps: Int = 10
     @FocusState private var crownFocused: Bool
+    @State private var lastLoggedAt: Date = .distantPast
 
     private var isResting: Bool { session.workoutState.isResting }
     private var step: Double { max(0.5, session.workoutState.weightStep) }
@@ -200,6 +201,9 @@ struct ActiveTrackingView: View {
     }
 
     private func logSet() {
+        // Guard against a fast double-tap sending two sets for one press.
+        guard Date().timeIntervalSince(lastLoggedAt) > 0.6 else { return }
+        lastLoggedAt = Date()
         WKInterfaceDevice.current().play(.success)
         session.sendLoggedSet(reps: reps, weight: weight, setOrder: session.workoutState.setNumber)
     }

@@ -138,28 +138,41 @@ extension WatchSessionManager: WCSessionDelegate {
     func session(_ session: WCSession, activationDidCompleteWith state: WCSessionActivationState, error: Error?) {
         // didReceiveApplicationContext only fires for NEW contexts — on a cold
         // start the last-known state (incl. the premium lock) must be read back
-        // from the persisted context or the app runs on defaults.
-        var context = session.receivedApplicationContext
+        // from the persisted context or the app runs on defaults. A persisted
+        // rest state is stale by definition here — never restart the countdown
+        // from it (unlike the live path below, where isResting may be a
+        // genuine in-progress push).
+        let context = session.receivedApplicationContext
         if !context.isEmpty {
-            // A persisted rest state is stale by definition — never restart
-            // the countdown from it.
-            context["isResting"] = false
-            // A snapshot older than 4h is yesterday's workout: restore only the
-            // premium lock, not the workout, so the watch wakes up Idle instead
-            // of mid-set. Contexts without a stamp (older phone build) are
-            // treated as stale.
-            let sentAtMs = (context["stateAt"] as? Double) ?? 0
-            if Date().timeIntervalSince1970 - sentAtMs / 1000 > 4 * 3600 {
-                let premium = context["premiumRequired"]
-                context = [:]
-                if let premium { context["premiumRequired"] = premium }
-            }
-            DispatchQueue.main.async { self.applyUpdate(context) }
+            var sanitized = Self.discardIfStale(context)
+            sanitized["isResting"] = false
+            DispatchQueue.main.async { self.applyUpdate(sanitized) }
         }
     }
 
     func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
-        DispatchQueue.main.async { self.applyUpdate(context) }
+        // Only the staleness discard applies to a live push — NOT the
+        // isResting reset above. updateState() (WatchSyncModule.swift) sends
+        // every state via both sendMessage and updateApplicationContext, so a
+        // genuine isResting:true delivered live must not be stomped back to
+        // false when the (redundant) application-context copy arrives.
+        DispatchQueue.main.async { self.applyUpdate(Self.discardIfStale(context)) }
+    }
+
+    /// A snapshot older than 4h is yesterday's workout: restore only the
+    /// premium lock, not the workout, so the watch wakes up Idle instead of
+    /// mid-set. Contexts without a stamp (older phone build) are treated as
+    /// stale. Applied to every application-context delivery, cold start and
+    /// live, so a live push can't bypass it either.
+    private static func discardIfStale(_ context: [String: Any]) -> [String: Any] {
+        var context = context
+        let sentAtMs = (context["stateAt"] as? Double) ?? 0
+        if Date().timeIntervalSince1970 - sentAtMs / 1000 > 4 * 3600 {
+            let premium = context["premiumRequired"]
+            context = [:]
+            if let premium { context["premiumRequired"] = premium }
+        }
+        return context
     }
 
     func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {

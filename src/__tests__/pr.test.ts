@@ -195,5 +195,30 @@ describe('pr utilities', () => {
 
       expect(detectPR(current, history)).toBe(true);
     });
+
+    it('should detect a true weight PR even when e1RM is lower (100kg x5 after 80kg x20)', () => {
+      const current = [createSet(100, 5)];
+      const history = [createLog([createSet(80, 20)])];
+
+      // e1RM: 100x5 ≈ 116.7, 80x20 ≈ 133.3 — e1RM alone would miss this.
+      expect(detectPR(current, history)).toBe(true);
+    });
+
+    it('should not flag a weight PR when no comparable rep count exists in history', () => {
+      // History only has a 1-rep set; a 10-rep set at any weight has nothing
+      // comparable (no historical set did >= 10 reps), so it shouldn't
+      // auto-PR just for trying a new, higher rep count.
+      const current = [createSet(50, 10)];
+      const history = [createLog([createSet(150, 1)])];
+
+      expect(detectPR(current, history)).toBe(false);
+    });
+
+    it('should not flag a weight PR when the weight does not exceed the comparable prior best', () => {
+      const current = [createSet(80, 5)];
+      const history = [createLog([createSet(80, 20)])];
+
+      expect(detectPR(current, history)).toBe(false);
+    });
   });
 });

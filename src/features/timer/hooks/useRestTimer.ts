@@ -38,6 +38,9 @@ export function useRestTimer() {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const backgroundedAtRef = useRef<number | null>(null);
   const notifIdRef = useRef<string | null>(null);
+  // iOS commonly delivers both 'inactive' and 'background' for one leave
+  // event — this guards scheduleNotif from firing twice for it.
+  const hasLeftRef = useRef(false);
 
   const clearTick = () => {
     if (intervalRef.current) {
@@ -109,6 +112,8 @@ export function useRestTimer() {
   useEffect(() => {
     const sub = AppState.addEventListener('change', async (next: AppStateStatus) => {
       if ((next === 'background' || next === 'inactive') && isRunning) {
+        if (hasLeftRef.current) return;
+        hasLeftRef.current = true;
         backgroundedAtRef.current = Date.now();
         // Snapshot current seconds from state via closure isn't reliable;
         // we use a ref to capture it at the moment of backgrounding.
@@ -119,6 +124,7 @@ export function useRestTimer() {
         });
         clearTick();
       } else if (next === 'active' && backgroundedAtRef.current !== null) {
+        hasLeftRef.current = false;
         const elapsed = Math.floor((Date.now() - backgroundedAtRef.current) / 1000);
         backgroundedAtRef.current = null;
         await cancelNotif();

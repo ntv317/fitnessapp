@@ -103,6 +103,11 @@ export function useAutoSaveSet() {
   const repo = useRepository();
   const qc = useQueryClient();
   const logIdRef = useRef<Map<string, number>>(new Map());
+  // In-flight resolveLogId promises, keyed the same as logIdRef — two saveSet
+  // calls racing before either has cached a logId (e.g. the watch and a phone
+  // tap landing back to back) must share one createLog instead of each
+  // independently seeing "no log yet" and creating a duplicate.
+  const pendingRef = useRef<Map<string, Promise<number>>>(new Map());
 
   const resolveLogId = useCallback(async (
     cacheKey: string,
@@ -115,6 +120,23 @@ export function useAutoSaveSet() {
     return logId;
   }, [repo]);
 
+  const getOrCreateLogId = useCallback(async (
+    cacheKey: string,
+    exerciseId: number,
+    dayTag: string | null,
+  ) => {
+    const cached = logIdRef.current.get(cacheKey);
+    if (cached != null) return cached;
+    let pending = pendingRef.current.get(cacheKey);
+    if (!pending) {
+      pending = resolveLogId(cacheKey, exerciseId, dayTag).finally(() => {
+        pendingRef.current.delete(cacheKey);
+      });
+      pendingRef.current.set(cacheKey, pending);
+    }
+    return pending;
+  }, [resolveLogId]);
+
   const saveSet = useCallback(async (
     exerciseId: number,
     setOrder: number,
@@ -125,7 +147,7 @@ export function useAutoSaveSet() {
     note: string | null = null,
   ) => {
     const cacheKey = `${exerciseId}|${dayTag ?? ''}`;
-    let logId = logIdRef.current.get(cacheKey) ?? (await resolveLogId(cacheKey, exerciseId, dayTag));
+    let logId = await getOrCreateLogId(cacheKey, exerciseId, dayTag);
     try {
       await repo.appendSet(logId, exerciseId, setOrder, reps, weight, dayTag, rpe, note);
     } catch (err) {
@@ -138,7 +160,7 @@ export function useAutoSaveSet() {
     qc.invalidateQueries({ queryKey: ['history'] });
     qc.invalidateQueries({ queryKey: ['weekly'] });
     qc.invalidateQueries({ queryKey: ['stats'] });
-  }, [repo, qc, resolveLogId]);
+  }, [repo, qc, resolveLogId, getOrCreateLogId]);
 
   const resetLogCache = useCallback((exerciseId: number, dayTag: string | null) => {
     logIdRef.current.delete(`${exerciseId}|${dayTag ?? ''}`);

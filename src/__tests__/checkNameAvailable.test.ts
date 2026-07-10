@@ -24,4 +24,16 @@ describe('WorkoutRepository.checkNameAvailable', () => {
     expect(await repo.checkNameAvailable('Bench Press', 1)).toBe(true);
     expect(await repo.checkNameAvailable('bench press', 1)).toBe(true);
   });
+
+  it('does not collapse distinct non-Latin names into a false collision', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Жим лёжа');`);
+    expect(await repo.checkNameAvailable('Приседания')).toBe(true);
+  });
+
+  it('still flags a genuine non-Latin duplicate', async () => {
+    const { repo, db } = makeRepo();
+    db.exec(`INSERT INTO Exercises (name) VALUES ('Жим лёжа');`);
+    expect(await repo.checkNameAvailable('жим лёжа')).toBe(false);
+  });
 });

@@ -41,6 +41,17 @@ describe('catalogMatch utilities', () => {
       const name = 'Dumbbell Curl';
       expect(normalizeName(normalizeName(name))).toBe(normalizeName(name));
     });
+
+    it('keeps non-Latin letters instead of collapsing them to empty', () => {
+      expect(normalizeName('Жим лёжа')).toBe('жим лежа');
+      expect(normalizeName('ท่าสควอท')).toBe('ทาสควอท');
+      expect(normalizeName('Đẩy Tạ Đòn')).toBe('day ta don');
+    });
+
+    it('distinguishes two different non-Latin names', () => {
+      expect(normalizeName('Жим лёжа')).not.toBe(normalizeName('Приседания'));
+      expect(normalizeName('ท่าสควอท')).not.toBe(normalizeName('ท่าเดดลิฟท์'));
+    });
   });
 
   describe('normalizeGroup', () => {
