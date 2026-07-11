@@ -15,7 +15,7 @@ const base = (k) => k.replace(/_(one|few|many|other)$/, '');
 
 const en = JSON.parse(fs.readFileSync(root + 'src/core/i18n/locales/en.json', 'utf8'));
 const enKeys = new Set(flat(en).map(base));
-for (const lang of ['vi', 'th', 'ru']) {
+for (const lang of ['vi', 'th', 'ru', 'zh-Hans', 'zh-Hant']) {
   const j = JSON.parse(fs.readFileSync(`${root}src/core/i18n/locales/${lang}.json`, 'utf8'));
   const keys = new Set(flat(j).map(base));
   const missing = [...enKeys].filter((k) => !keys.has(k));
@@ -32,10 +32,12 @@ const SCRIPT = {
   ru: /[Ѐ-ӿ]/,
   th: /[฀-๿]/,
   vi: /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđĐ]/i,
+  'zh-Hans': /[一-鿿]/,
+  'zh-Hant': /[一-鿿]/,
 };
 
 const catalog = JSON.parse(fs.readFileSync(root + 'src/features/library/data/exercises.json', 'utf8'));
-for (const lang of ['vi', 'th', 'ru']) {
+for (const lang of ['vi', 'th', 'ru', 'zh-Hans', 'zh-Hant']) {
   const re = SCRIPT[lang];
   const file = `${root}src/features/library/data/i18n/exercises.${lang}.json`;
   const j = JSON.parse(fs.readFileSync(file, 'utf8'));

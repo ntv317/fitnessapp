@@ -23,7 +23,7 @@
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "CFBundleLocalizations": ["en", "vi", "th", "ru"]
+        "CFBundleLocalizations": ["en", "vi", "th", "ru", "zh-Hans", "zh-Hant"]
       }
     },
     "plugins": [

@@ -13,6 +13,8 @@ const loaders: Record<string, () => CatalogL10n> = {
   vi: () => require('../data/i18n/exercises.vi.json'),
   th: () => require('../data/i18n/exercises.th.json'),
   ru: () => require('../data/i18n/exercises.ru.json'),
+  'zh-Hans': () => require('../data/i18n/exercises.zh-Hans.json'),
+  'zh-Hant': () => require('../data/i18n/exercises.zh-Hant.json'),
 };
 
 const cache = new Map<string, CatalogL10n>();

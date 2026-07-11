@@ -1,8 +1,8 @@
 import { format, formatDistanceToNow, isToday, isYesterday } from 'date-fns';
-import { vi, th, ru } from 'date-fns/locale';
+import { vi, th, ru, zhCN, zhTW } from 'date-fns/locale';
 import i18n from 'i18next';
 
-const dateFnsLocales = { vi, th, ru } as const;
+const dateFnsLocales = { vi, th, ru, 'zh-Hans': zhCN, 'zh-Hant': zhTW } as const;
 
 export function dateFnsLocale() {
   return dateFnsLocales[i18n.language as keyof typeof dateFnsLocales];

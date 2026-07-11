@@ -20,6 +20,8 @@
 		<string>vi</string>
 		<string>th</string>
 		<string>ru</string>
+		<string>zh-Hans</string>
+		<string>zh-Hant</string>
 	</array>
 	<key>CFBundleName</key>
 	<string>$(PRODUCT_NAME)</string>

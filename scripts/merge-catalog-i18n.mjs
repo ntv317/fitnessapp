@@ -27,9 +27,11 @@ const SCRIPT = {
   // OR đ. Pure-ASCII names slip through only if they legitimately have no
   // diacritics — rare for exercise names, and harmless (English == the value).
   vi: /[àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđĐ]/i,
+  'zh-Hans': /[一-鿿]/,
+  'zh-Hant': /[一-鿿]/,
 };
 
-for (const lang of ['vi', 'th', 'ru']) {
+for (const lang of ['vi', 'th', 'ru', 'zh-Hans', 'zh-Hant']) {
   const re = SCRIPT[lang];
   const parts = fs
     .readdirSync(partsDir)

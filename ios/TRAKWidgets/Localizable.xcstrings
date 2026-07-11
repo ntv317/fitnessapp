@@ -20,6 +20,18 @@
             "state" : "translated",
             "value" : "NGHỈ"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "休息"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "休息"
+          }
         }
       }
     },
@@ -52,6 +64,18 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Set %lld/%lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 组，共 %lld 组"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 組，共 %lld 組"
           }
         }
       }
