@@ -142,7 +142,7 @@ export default function MuscleGroupListScreen() {
                   {isMyExercises ? (
                     <Ionicons name="person-circle-outline" size={34} color={Colors.textPrimary} />
                   ) : (
-                    <MuscleMapIcon group={item.group as MuscleGroup} size={34} />
+                    <MuscleMapIcon group={item.group as MuscleGroup} size={48} style={{ borderRadius: 8 }} />
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
