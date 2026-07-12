@@ -362,7 +362,9 @@
     "sharePrompt": "Share Prompt",
     "jsonPlaceholder": "[\n  { \"day\": \"PUSH\", \"exercises\": [...] },\n  { \"day\": \"PULL\", \"exercises\": [...] }\n]",
     "importButton": "Import Weekly Plan",
-    "successMessage": "✓ Plan imported & set active — {{days}} days · {{exercises}} exercises"
+    "successMessage": "✓ Plan imported & set active — {{days}} days · {{exercises}} exercises",
+    "aiPromptGoal": "My goal: [REPLACE — e.g. \"build muscle, 4 days/week, intermediate\"]",
+    "aiPromptLang": ""
   },
   "premium": {
     "benefitBackup": "iCloud Backup — never lose a PR",
