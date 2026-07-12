@@ -362,7 +362,9 @@
     "sharePrompt": "分享提示詞",
     "jsonPlaceholder": "[\n  { \"day\": \"推日\", \"exercises\": [...] },\n  { \"day\": \"拉日\", \"exercises\": [...] }\n]",
     "importButton": "匯入每週計劃",
-    "successMessage": "✓ 計劃已匯入並設為當前使用 — {{days}} 天 · {{exercises}} 個動作"
+    "successMessage": "✓ 計劃已匯入並設為當前使用 — {{days}} 天 · {{exercises}} 個動作",
+    "aiPromptGoal": "我的目標：[替換為 — 例如\"增肌，每週4天，中級\"]",
+    "aiPromptLang": "語言：我使用的是中文（繁體）版本的應用程式。請將 \"day\" 的值寫成中文，但每個動作的 \"name\" 必須保持英文，與上文規定完全一致，muscleGroup 的值也必須保持英文，與列表完全一致。下面的目標可以用中文書寫。"
   },
   "premium": {
     "benefitBackup": "iCloud 備份 — 永遠不丟失 PR 記錄",

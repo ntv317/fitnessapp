@@ -19,7 +19,6 @@ import { ImportService } from '../services/ImportService';
 import { useRepository } from '@/features/workout/hooks/useRepository';
 import { useQueryClient } from '@tanstack/react-query';
 import { EXERCISES_KEY } from '@/features/workout/hooks/useExercises';
-import { currentLanguage } from '@/core/i18n';
 
 const AI_PROMPT = `Create a weekly workout plan for me and output it as JSON only — no explanation, no markdown, no code fences.
 
@@ -46,21 +45,12 @@ Exercise names — this matters for matching to the built-in exercise library:
 - Do NOT abbreviate. Write "Dumbbell" not "DB", "Barbell" not "BB", "Overhead Press" not "OHP", "Romanian Deadlift" not "RDL".
 - Prefer well-known names from standard exercise databases over gym slang.`;
 
-const PROMPT_LANGUAGE_NAMES: Record<string, string> = {
-  vi: 'Vietnamese',
-  th: 'Thai',
-  ru: 'Russian',
-};
-
 // Exercise names and muscleGroup values must stay English — they are canonical
-// keys matched against the bundled catalog (and localized at display time).
-// Only the day labels the user reads are asked for in their app language.
-function buildAiPrompt(): string {
-  const language = PROMPT_LANGUAGE_NAMES[currentLanguage()];
-  const languageRule = language
-    ? `\n\nLanguage: I use the app in ${language}. Write the "day" values in ${language}, but keep every exercise "name" in English exactly as specified above, and keep muscleGroup values exactly as listed. My goal below may be written in ${language}.`
-    : '';
-  return `${AI_PROMPT}${languageRule}\n\nMy goal: [REPLACE — e.g. "build muscle, 4 days/week, intermediate"]`;
+// keys matched against the bundled catalog. The language rule + goal line are
+// localized via i18n; AI_PROMPT itself (the instructions) stays English.
+function buildAiPrompt(t: (key: string) => string): string {
+  const languageRule = t('import.aiPromptLang');
+  return `${AI_PROMPT}${languageRule ? `\n\n${languageRule}` : ''}\n\n${t('import.aiPromptGoal')}`;
 }
 
 export default function DataImportScreen() {
@@ -77,13 +67,13 @@ export default function DataImportScreen() {
 
   const copyPrompt = useCallback(async () => {
     try {
-      await Share.share({ message: buildAiPrompt() });
+      await Share.share({ message: buildAiPrompt(t) });
     } catch {
       // user dismissed share sheet — not an error
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
-  }, []);
+  }, [t]);
 
   const handleImport = useCallback(async () => {
     if (!json.trim()) return;
@@ -245,7 +235,7 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     fontSize: FontSize.xs,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    minHeight: 160,
+    height: 200,
     textAlignVertical: 'top',
     borderWidth: 1,
     borderColor: Colors.border,
