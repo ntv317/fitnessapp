@@ -187,6 +187,9 @@
     "Finish" : {
 
     },
+    "LIFTREPS" : {
+
+    },
     "LIFTREPS Pro" : {
 
     },
@@ -529,9 +532,6 @@
           }
         }
       }
-    },
-    "TRAK" : {
-
     },
     "Unlock the watch app\nin LIFTREPS on your iPhone" : {
       "localizations" : {

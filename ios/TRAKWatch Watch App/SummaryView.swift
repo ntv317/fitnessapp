@@ -48,7 +48,7 @@ struct SummaryView: View {
 
     private var topBar: some View {
         HStack {
-            Text("TRAK")
+            Text("LIFTREPS")
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                 .foregroundColor(TRAKColor.primary)
             Spacer()
