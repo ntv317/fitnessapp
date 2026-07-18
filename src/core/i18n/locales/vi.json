@@ -225,7 +225,10 @@
     "importButton": "Nhập giáo án tuần",
     "successMessage": "✓ Đã nhập giáo án & đặt làm hiện hành — {{days}} ngày · {{exercises}} bài tập",
     "aiPromptGoal": "Mục tiêu của tôi: [THAY BẰNG — ví dụ: \"tăng cơ, 4 buổi/tuần, trình độ trung bình\"]",
-    "aiPromptLang": "Ngôn ngữ: Tôi dùng ứng dụng bằng tiếng Việt. Hãy viết các giá trị \"day\" bằng tiếng Việt, nhưng giữ nguyên mọi \"name\" bài tập bằng tiếng Anh đúng như đã nêu ở trên, và giữ nguyên các giá trị muscleGroup như đã liệt kê. Mục tiêu của tôi bên dưới có thể được viết bằng tiếng Việt."
+    "aiPromptLang": "Ngôn ngữ: Tôi dùng ứng dụng bằng tiếng Việt. Hãy viết các giá trị \"day\" bằng tiếng Việt, nhưng giữ nguyên mọi \"name\" bài tập bằng tiếng Anh đúng như đã nêu ở trên, và giữ nguyên các giá trị muscleGroup như đã liệt kê. Mục tiêu của tôi bên dưới có thể được viết bằng tiếng Việt.",
+    "error_parse": "Đó không phải JSON hợp lệ. Hãy dán toàn bộ phản hồi của AI.",
+    "error_validation": "JSON không đúng định dạng mong đợi. Hãy kiểm tra ví dụ và thử lại.",
+    "error_db": "Nhập không thành công. Vui lòng thử lại."
   },
   "premium": {
     "benefitBackup": "Sao lưu iCloud — không bao giờ mất PR",
@@ -255,7 +258,12 @@
     "continue": "Tiếp tục",
     "restorePurchases": "Khôi phục giao dịch",
     "terms": "Điều khoản",
-    "privacy": "Quyền riêng tư"
+    "privacy": "Quyền riêng tư",
+    "freeTrial": "Dùng thử miễn phí {{count}} {{unit}}",
+    "periodDay": "ngày",
+    "periodWeek": "tuần",
+    "periodMonth": "tháng",
+    "periodYear": "năm"
   },
   "tabs": {
     "exercises": "Bài tập",

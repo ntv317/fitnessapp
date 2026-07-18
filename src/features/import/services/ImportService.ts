@@ -2,9 +2,13 @@ import { AIImportSchema, type AIImportPayload } from '@/core/database/types';
 import type { IWorkoutRepository } from '@/features/workout/services/IWorkoutRepository';
 import { resolveImport } from './catalogMatch';
 
+export type ImportErrorCode = 'parse' | 'validation' | 'db';
+
 export type ImportResult =
   | { ok: true; days: number; exercises: number }
-  | { ok: false; error: string };
+  // `error` holds the technical detail (English, for logging); `code` lets the
+  // UI show a localized message.
+  | { ok: false; code: ImportErrorCode; error: string };
 
 export class ImportService {
   constructor(private readonly repo: IWorkoutRepository) {}
@@ -26,7 +30,7 @@ export class ImportService {
     try {
       parsed = JSON.parse(cleaned);
     } catch (e) {
-      return { ok: false, error: `Parse error: ${e instanceof Error ? e.message : String(e)}` };
+      return { ok: false, code: 'parse', error: `Parse error: ${e instanceof Error ? e.message : String(e)}` };
     }
 
     const result = AIImportSchema.safeParse(parsed);
@@ -34,6 +38,7 @@ export class ImportService {
       const first = result.error.errors[0];
       return {
         ok: false,
+        code: 'validation',
         error: `[${first.path.join('.')}]: ${first.message}`,
       };
     }
@@ -47,6 +52,7 @@ export class ImportService {
     } catch (err) {
       return {
         ok: false,
+        code: 'db',
         error: err instanceof Error ? err.message : 'Unknown database error.',
       };
     }

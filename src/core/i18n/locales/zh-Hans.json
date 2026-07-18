@@ -371,7 +371,10 @@
     "importButton": "导入每周计划",
     "successMessage": "✓ 计划已导入并设为当前使用 — {{days}} 天 · {{exercises}} 个动作",
     "aiPromptGoal": "我的目标：[替换为 — 例如\"增肌，每周4天，中级\"]",
-    "aiPromptLang": "语言：我使用的是中文（简体）版本的应用。请将 \"day\" 的值写成中文，但每个动作的 \"name\" 必须保持英文，与上文规定完全一致，muscleGroup 的值也必须保持英文，与列表完全一致。下面的目标可以用中文书写。"
+    "aiPromptLang": "语言：我使用的是中文（简体）版本的应用。请将 \"day\" 的值写成中文，但每个动作的 \"name\" 必须保持英文，与上文规定完全一致，muscleGroup 的值也必须保持英文，与列表完全一致。下面的目标可以用中文书写。",
+    "error_parse": "这不是有效的 JSON。请粘贴 AI 的完整回复。",
+    "error_validation": "JSON 格式不符合要求。请对照示例后重试。",
+    "error_db": "导入失败，请重试。"
   },
   "premium": {
     "benefitBackup": "iCloud 备份 — 永远不丢失 PR 记录",
@@ -401,7 +404,12 @@
     "continue": "继续",
     "restorePurchases": "恢复购买",
     "terms": "条款",
-    "privacy": "隐私"
+    "privacy": "隐私",
+    "freeTrial": "{{count}}{{unit}}免费试用",
+    "periodDay": "天",
+    "periodWeek": "周",
+    "periodMonth": "个月",
+    "periodYear": "年"
   },
   "stats": {
     "totalVolume": "总容量",
