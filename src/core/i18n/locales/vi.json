@@ -64,7 +64,7 @@
     "deleteLogBody": "Không thể hoàn tác.",
     "sets_one": "{{count}} set",
     "sets_other": "{{count}} set",
-    "vol": "{{value}} {{unit}} vol",
+    "vol": "{{value}} {{unit}} khối lượng",
     "loading": "Đang tải…"
   },
   "backup": {
@@ -135,8 +135,8 @@
     "noPlansBody": "Đi tới tab Kế hoạch để xây dựng hoặc kích hoạt một split.",
     "currentSplit": "Split Hiện Tại",
     "selectDayPrompt": "Chọn một ngày, sau đó nhấn vào một bài tập để bắt đầu ghi.",
-    "compound": "Compound",
-    "isolation": "Isolation",
+    "compound": "Đa khớp",
+    "isolation": "Cô lập",
     "exercises": "Bài tập",
     "min": "Phút",
     "thisWeek": "Tuần này",

@@ -64,7 +64,7 @@
     "deleteLogBody": "ไม่สามารถย้อนกลับได้",
     "sets_one": "{{count}} เซต",
     "sets_other": "{{count}} เซต",
-    "vol": "{{value}} {{unit}} vol",
+    "vol": "{{value}} {{unit}} ปริมาณ",
     "loading": "กำลังโหลด…"
   },
   "backup": {
@@ -135,8 +135,8 @@
     "noPlansBody": "ไปที่แท็บแผน เพื่อสร้างหรือเปิดใช้งานการแบ่ง",
     "currentSplit": "การแบ่งปัจจุบัน",
     "selectDayPrompt": "เลือกวันหนึ่ง จากนั้นแตะท่าออกกำลังกายเพื่อเริ่มการบันทึก",
-    "compound": "Compound",
-    "isolation": "Isolation",
+    "compound": "หลายข้อต่อ",
+    "isolation": "เฉพาะส่วน",
     "exercises": "ท่าออกกำลังกาย",
     "min": "นาที",
     "thisWeek": "สัปดาห์นี้",
