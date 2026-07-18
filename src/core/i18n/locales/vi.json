@@ -194,7 +194,14 @@
     "headline5": "Thêm một buổi nữa.",
     "exerciseCount_one": "{{count}} bài tập",
     "exerciseCount_other": "{{count}} bài tập",
-    "setsOfTotal": "{{done}}/{{total}} set"
+    "setsOfTotal": "{{done}}/{{total}} set",
+    "newPRBadge": "PR MỚI",
+    "rpe": "RPE",
+    "note": "Ghi chú",
+    "rpeNote": "RPE / Ghi chú",
+    "notePlaceholder": "vd. thấy nặng",
+    "repsUnit": "lượt",
+    "sessionsAxis": "{{count}} buổi tập"
   },
   "timer": {
     "restTimer": "Hẹn giờ nghỉ",

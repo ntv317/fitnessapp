@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText, StepperInput } from '@/core/ui';
@@ -51,6 +52,7 @@ export function SetInputCard({
   onDelete,
   onCancelEdit,
 }: SetInputCardProps) {
+  const { t } = useTranslation();
   const { unit, toKg, fromKg, showPlateBreakdown, conversionHint } = useUnit();
   const weightStep = unit === 'kg' ? 2.5 : 5;
   const { config: barbellConfig } = useBarbellConfig();
@@ -156,7 +158,7 @@ export function SetInputCard({
           </View>
           <TouchableOpacity onPress={onCancelEdit} hitSlop={10}>
             <AppText variant="labelMono" upper color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>
-              Cancel
+              {t('common.cancel')}
             </AppText>
           </TouchableOpacity>
         </View>
@@ -164,11 +166,11 @@ export function SetInputCard({
 
       <View style={styles.row}>
         <View style={styles.field}>
-          <AppText variant="labelMono" upper color={Colors.textMuted}>Weight ({unit})</AppText>
+          <AppText variant="labelMono" upper color={Colors.textMuted}>{t('workout.weight')} ({unit})</AppText>
           <StepperInput value={weightText} onChangeText={handleWeightChange} step={weightStep} decimal color={accent} style={styles.stepper} />
         </View>
         <View style={styles.field}>
-          <AppText variant="labelMono" upper color={Colors.textMuted}>Reps</AppText>
+          <AppText variant="labelMono" upper color={Colors.textMuted}>{t('workout.reps')}</AppText>
           <StepperInput value={repsText} onChangeText={handleRepsChange} step={1} color={accent} style={styles.stepper} />
         </View>
 
@@ -189,26 +191,26 @@ export function SetInputCard({
 
       {!editing && (
         <AppText variant="labelMono" upper color={Colors.textMuted} style={{ marginTop: Spacing.sm }}>
-          {loggedCount} of {target} sets
+          {t('workout.setsOfTotal', { done: loggedCount, total: target })}
         </AppText>
       )}
 
       <TouchableOpacity style={styles.extrasToggle} onPress={() => setExtrasOpen((o) => !o)} hitSlop={6}>
-        <AppText variant="labelMono" upper color={Colors.textSecondary}>RPE / Note</AppText>
+        <AppText variant="labelMono" upper color={Colors.textSecondary}>{t('workout.rpeNote')}</AppText>
         <Ionicons name={extrasOpen ? 'chevron-up' : 'chevron-down'} size={14} color={Colors.textSecondary} />
       </TouchableOpacity>
       {extrasOpen && (
         <View style={styles.extrasRow}>
           <View style={styles.rpeField}>
-            <AppText variant="labelMono" upper color={Colors.textMuted}>RPE</AppText>
+            <AppText variant="labelMono" upper color={Colors.textMuted}>{t('workout.rpe')}</AppText>
             <StepperInput value={rpeText} onChangeText={setRpeText} step={0.5} min={0} decimal color={accent} placeholder="—" style={styles.rpeStepper} />
           </View>
           <View style={styles.noteField}>
-            <AppText variant="labelMono" upper color={Colors.textMuted}>Note</AppText>
+            <AppText variant="labelMono" upper color={Colors.textMuted}>{t('workout.note')}</AppText>
             <TextInput
               value={noteText}
               onChangeText={setNoteText}
-              placeholder="e.g. felt heavy"
+              placeholder={t('workout.notePlaceholder')}
               placeholderTextColor={Colors.textMuted}
               style={styles.noteInput}
               maxLength={120}

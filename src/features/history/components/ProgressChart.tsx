@@ -7,6 +7,7 @@ import {
   type LayoutChangeEvent,
 } from 'react-native';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 // Deep import: the package index pulls in BarChart, whose gradient helper
 // throws at load unless react-native-linear-gradient / expo-linear-gradient is
 // installed. LineChart itself only needs react-native-svg.
@@ -40,6 +41,7 @@ function epley(w: number, r: number) {
 }
 
 export function ProgressChart({ logs, color = Colors.primary, metrics: metricsProp }: Props) {
+  const { t } = useTranslation();
   const metricOptions = metricsProp ?? BASE_METRICS;
   const [metric, setMetric] = useState<Metric>(metricOptions[0].key);
   const [chartW, setChartW] = useState(0);
@@ -95,7 +97,7 @@ export function ProgressChart({ logs, color = Colors.primary, metrics: metricsPr
   const sign      = delta >= 0 ? '+' : '';
   const pct       = dispFirst > 0 ? `${sign}${((delta / dispFirst) * 100).toFixed(0)}%` : '';
   const deltaAmt  = `${sign}${Math.abs(delta) < 1 ? delta.toFixed(1) : Math.round(delta)}`;
-  const unit      = metric === 'volume' ? `${weightUnit} vol` : metric === 'bestReps' ? 'reps' : weightUnit;
+  const unit      = metric === 'volume' ? `${weightUnit} vol` : metric === 'bestReps' ? t('workout.repsUnit') : weightUnit;
   const dColor    = delta >= 0 ? Colors.success : Colors.danger;
 
   return (
@@ -116,7 +118,7 @@ export function ProgressChart({ logs, color = Colors.primary, metrics: metricsPr
         <View style={s.badgeRow}>
           {isPR && (
             <View style={[s.prBadge, { backgroundColor: color + '18', borderColor: color + '50' }]}>
-              <Text style={[s.prText, { color }]}>PR</Text>
+              <Text style={[s.prText, { color }]}>{t('workout.pr')}</Text>
             </View>
           )}
           <View style={[s.deltaBadge, { backgroundColor: dColor + '15' }]}>
@@ -166,7 +168,7 @@ export function ProgressChart({ logs, color = Colors.primary, metrics: metricsPr
 
       <View style={s.xRow}>
         <Text style={s.xLabel}>{format(new Date(data[0].timestamp), 'MMM d', { locale: dateFnsLocale() })}</Text>
-        <Text style={s.xLabel}>{data.length} sessions</Text>
+        <Text style={s.xLabel}>{t('workout.sessionsAxis', { count: data.length })}</Text>
         <Text style={s.xLabel}>{format(new Date(data[data.length - 1].timestamp), 'MMM d', { locale: dateFnsLocale() })}</Text>
       </View>
     </View>

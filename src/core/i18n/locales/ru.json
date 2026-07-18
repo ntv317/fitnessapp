@@ -208,7 +208,14 @@
     "exerciseCount_few": "{{count}} упражнения",
     "exerciseCount_many": "{{count}} упражнений",
     "exerciseCount_other": "{{count}} упражнения",
-    "setsOfTotal": "{{done}}/{{total}} сетов"
+    "setsOfTotal": "{{done}}/{{total}} сетов",
+    "newPRBadge": "НОВЫЙ РЕКОРД",
+    "rpe": "RPE",
+    "note": "Заметка",
+    "rpeNote": "RPE / Заметка",
+    "notePlaceholder": "напр. было тяжело",
+    "repsUnit": "повт.",
+    "sessionsAxis": "{{count}} тренировки"
   },
   "timer": {
     "restTimer": "Таймер отдыха",

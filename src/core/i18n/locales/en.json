@@ -340,7 +340,14 @@
     "headline5": "One more done.",
     "exerciseCount_one": "{{count}} exercise",
     "exerciseCount_other": "{{count}} exercises",
-    "setsOfTotal": "{{done}}/{{total}} sets"
+    "setsOfTotal": "{{done}}/{{total}} sets",
+    "newPRBadge": "NEW PR",
+    "rpe": "RPE",
+    "note": "Note",
+    "rpeNote": "RPE / Note",
+    "notePlaceholder": "e.g. felt heavy",
+    "repsUnit": "reps",
+    "sessionsAxis": "{{count}} sessions"
   },
   "timer": {
     "restTimer": "Rest Timer",

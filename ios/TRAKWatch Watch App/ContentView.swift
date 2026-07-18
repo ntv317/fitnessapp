@@ -29,7 +29,7 @@ struct LockedView: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack {
-                Text("TRAK")
+                Text("LIFTREPS")
                     .font(.system(size: 14, weight: .bold, design: .monospaced))
                     .foregroundColor(TRAKColor.primary)
                 Spacer()

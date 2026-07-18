@@ -4,6 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import Svg, { Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
@@ -45,6 +46,7 @@ import type { WorkoutLog } from '@/core/database/types';
 // Per-screen-instance so auto-advance (replace mounts the next exercise before
 // this one unmounts) can't cancel the new screen's pending notification.
 function useRestNotification() {
+  const { t } = useTranslation();
   const idRef = useRef<string | null>(null);
 
   const cancel = useCallback(async () => {
@@ -61,13 +63,13 @@ function useRestNotification() {
     if (!perm?.granted) return;
     await cancel();
     idRef.current = await Notifications.scheduleNotificationAsync({
-      content: { title: 'Rest complete', body: 'Time for your next set.', sound: true },
+      content: { title: t('workout.restComplete'), body: t('workout.restCompleteBody'), sound: true },
       trigger: {
         seconds: Math.max(1, seconds),
         type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
       },
     });
-  }, [cancel]);
+  }, [cancel, t]);
 
   return { schedule, cancel };
 }
@@ -94,11 +96,12 @@ function ExerciseCompleteOverlay({
   unit: string;
   onNext: () => void;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
-    const t = setTimeout(onNext, 1800);
-    return () => clearTimeout(t);
+    const timer = setTimeout(onNext, 1800);
+    return () => clearTimeout(timer);
   }, [onNext]);
 
   return (
@@ -113,17 +116,17 @@ function ExerciseCompleteOverlay({
         </View>
         {data.isPR && (
           <View style={[styles.prBadge, { backgroundColor: accent }]}>
-            <AppText style={styles.prBadgeText}>NEW PR</AppText>
+            <AppText style={styles.prBadgeText}>{t('workout.newPRBadge')}</AppText>
           </View>
         )}
         <AppText variant="headlineLg" center style={{ fontSize: 26, lineHeight: 32, marginTop: 16 }}>
           {data.exerciseName}
         </AppText>
         <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginTop: 6 }}>
-          {data.setCount} sets · {data.volumeDisplay} {unit}
+          {t('history.sets', { count: data.setCount })} · {data.volumeDisplay} {unit}
         </AppText>
         <AppText variant="labelMono" color={Colors.textMuted} style={{ marginTop: 32 }}>
-          tap to continue
+          {t('workout.tapToContinue')}
         </AppText>
       </View>
     </TouchableOpacity>
@@ -156,6 +159,7 @@ function RestTimerOverlay({
   onSkip: () => void;
   onAdjust?: (endAtMs: number) => void;
 }) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const [remaining, setRemaining] = useState(durationSeconds);
   const [total, setTotal] = useState(durationSeconds);
@@ -199,10 +203,10 @@ function RestTimerOverlay({
       <View style={[styles.restHeader, { paddingTop: insets.top + Spacing.xs }]}>
         <View style={styles.restHeaderLeft}>
           <Ionicons name="timer-outline" size={20} color={accent} />
-          <AppText variant="headlineMd" color={accent} style={{ fontFamily: Fonts.sansBold }}>REST</AppText>
+          <AppText variant="headlineMd" color={accent} style={{ fontFamily: Fonts.sansBold }}>{t('workout.rest')}</AppText>
         </View>
         <TouchableOpacity onPress={onSkip} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <AppText variant="labelMono" upper color={Colors.textSecondary}>Cancel</AppText>
+          <AppText variant="labelMono" upper color={Colors.textSecondary}>{t('common.cancel')}</AppText>
         </TouchableOpacity>
       </View>
 
@@ -227,13 +231,13 @@ function RestTimerOverlay({
             <AppText variant="displayTimer" color={Colors.textPrimary} style={styles.restCountText}>
               {mins}:{secs}
             </AppText>
-            <AppText variant="labelMono" upper color={Colors.textSecondary}>Seconds Remaining</AppText>
+            <AppText variant="labelMono" upper color={Colors.textSecondary}>{t('workout.secondsRemaining')}</AppText>
           </View>
         </View>
 
         {/* Up next */}
         <View style={styles.restUpNext}>
-          <AppText variant="labelMono" upper color={accent} style={{ fontFamily: Fonts.sansBold }}>Up Next</AppText>
+          <AppText variant="labelMono" upper color={accent} style={{ fontFamily: Fonts.sansBold }}>{t('workout.upNext')}</AppText>
           <AppText variant="headlineLg" center style={{ fontSize: 26, lineHeight: 30, marginTop: 2 }}>
             {upNextTitle}
           </AppText>
@@ -256,7 +260,7 @@ function RestTimerOverlay({
           </TouchableOpacity>
         </View>
         <TouchableOpacity style={[styles.restSkipBtn, { backgroundColor: accent }]} onPress={onSkip} activeOpacity={0.85}>
-          <AppText variant="headlineMd" color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>Skip Rest</AppText>
+          <AppText variant="headlineMd" color={Colors.white} style={{ fontFamily: Fonts.sansBold }}>{t('workout.skipRest')}</AppText>
           <Ionicons name="play-skip-forward" size={20} color={Colors.white} />
         </TouchableOpacity>
       </View>
@@ -273,6 +277,7 @@ interface LoggedSet {
 }
 
 export default function ExerciseDetailScreen() {
+  const { t } = useTranslation();
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; color?: string; day?: string; startTime?: string }>();
   const exerciseId = Number(params.id);
@@ -326,7 +331,7 @@ export default function ExerciseDetailScreen() {
       ? [...catalogExercise.primaryMuscles, ...catalogExercise.secondaryMuscles].slice(0, 3).join(' / ')
       : null;
   const metaLabel = [
-    exercise?.isCompound ? 'Compound' : 'Isolation',
+    exercise?.isCompound ? t('workout.compound') : t('workout.isolation'),
     muscleLabel,
     isExactCatalog ? catalogExercise?.equipment ?? null : null,
   ]
@@ -546,7 +551,7 @@ export default function ExerciseDetailScreen() {
         // that isn't actually saved.
         touchedRef.current = false;
         qc.invalidateQueries({ queryKey: historyKey(exerciseId) });
-        Alert.alert('Set not saved', 'That set could not be saved — please log it again.');
+        Alert.alert(t('workout.setNotSaved'), t('workout.setNotSavedBody'));
       });
       // The number pad is usually still up from typing weight/reps — the rest
       // overlay covers the whole screen, so a lingering keyboard floats over it.
@@ -559,7 +564,7 @@ export default function ExerciseDetailScreen() {
       startRestActivity(exercise?.name ?? '', Math.min(updated.length + 1, totalSetsForActivity), totalSetsForActivity, Date.now() + rest * 1000, accent);
       scheduleRestNotification(rest);
     },
-    [exerciseId, exercise, saveSet, pushWatchState, accent, scheduleRestNotification, dayTag, target, qc],
+    [exerciseId, exercise, saveSet, pushWatchState, accent, scheduleRestNotification, dayTag, target, qc, t],
   );
 
   // Wire the watch handler now that completeSet exists. Reassigned each render
@@ -677,7 +682,7 @@ export default function ExerciseDetailScreen() {
     const current = exercise.defaultRestSeconds;
     const labels = REST_PRESETS.map((s) => `${s}s${s === current ? ' ✓' : ''}`);
     ActionSheetIOS.showActionSheetWithOptions(
-      { title: 'Rest Timer', options: ['Cancel', ...labels], cancelButtonIndex: 0 },
+      { title: t('workout.restTimer'), options: [t('common.cancel'), ...labels], cancelButtonIndex: 0 },
       (index) => {
         if (index === 0) return;
         upsertExercise.mutate({
@@ -688,19 +693,19 @@ export default function ExerciseDetailScreen() {
         });
       },
     );
-  }, [isPro, exercise, upsertExercise]);
+  }, [isPro, exercise, upsertExercise, t]);
 
   // ••• menu — two-tap protection against accidental mid-lift exits
   const handleMoreMenu = useCallback(() => {
     ActionSheetIOS.showActionSheetWithOptions(
-      { options: ['Cancel', 'Finish Workout', 'Rest Timer'], cancelButtonIndex: 0 },
+      { options: [t('common.cancel'), t('workout.finishWorkout'), t('workout.restTimer')], cancelButtonIndex: 0 },
       (index) => {
         if (index === 1) handleFinish();
         // Defer so the sheet finishes dismissing before the next one presents.
         else if (index === 2) setTimeout(handleRestTimerMenu, 0);
       },
     );
-  }, [handleFinish, handleRestTimerMenu]);
+  }, [handleFinish, handleRestTimerMenu, t]);
 
   // ── Editable history ────────────────────────────────────────────────────────
 
@@ -753,13 +758,13 @@ export default function ExerciseDetailScreen() {
 
   const restAllDone = todaySets.length >= target;
   const restUpTitle = restAllDone
-    ? nextExercise?.name ?? 'Workout Complete'
-    : exercise?.name ?? 'Next Set';
+    ? nextExercise?.name ?? t('workout.workoutComplete')
+    : exercise?.name ?? t('workout.nextSet');
   const restUpSub = restAllDone
     ? nextExercise
-      ? 'Next exercise'
-      : 'Great work — day done!'
-    : `Set ${todaySets.length + 1} of ${Math.max(target, todaySets.length + 1)}` +
+      ? t('workout.nextExercise')
+      : t('workout.dayDone')
+    : t('workout.setXofY', { n: todaySets.length + 1, total: Math.max(target, todaySets.length + 1) }) +
       (prefillWeightKg > 0 ? ` • ${Math.round(fromKg(prefillWeightKg) * 10) / 10} ${unit} × ${prefillReps}` : '');
 
   return (
@@ -775,7 +780,7 @@ export default function ExerciseDetailScreen() {
           </TouchableOpacity>
           <Ionicons name="barbell" size={20} color={Colors.primary} />
           <AppText variant="headlineMd" color={Colors.primary} style={{ fontFamily: Fonts.sansBold }}>
-            Workout
+            {t('workout.title')}
           </AppText>
         </View>
         <View style={styles.appBarRight}>
@@ -803,7 +808,7 @@ export default function ExerciseDetailScreen() {
         {/* Exercise header */}
         <View style={styles.exHeader}>
           <AppText variant="headlineLg" selectable style={{ fontSize: 28, lineHeight: 32 }}>
-            {exercise?.name ?? 'Exercise'}
+            {exercise?.name ?? t('workout.exerciseFallback')}
           </AppText>
           <AppText variant="labelMono" upper color={Colors.textSecondary} style={{ marginTop: 2 }}>
             {[metaLabel, repRangeLabel].filter(Boolean).join(' • ')}
@@ -816,8 +821,12 @@ export default function ExerciseDetailScreen() {
                 color={accent}
               />
               <AppText variant="labelMono" color={Colors.textSecondary}>
-                Next: {formatWeight(fromKg(progression.weightKg))} {unit} × {progression.reps}
-                {progression.increased ? ' — you earned an increase' : ''}
+                {t('workout.nextSuggestion', {
+                  weight: formatWeight(fromKg(progression.weightKg)),
+                  unit,
+                  reps: progression.reps,
+                })}
+                {progression.increased ? t('workout.earnedIncrease') : ''}
               </AppText>
             </View>
           )}

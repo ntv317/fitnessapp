@@ -340,7 +340,14 @@
     "headline5": "又完成一次。",
     "exerciseCount_one": "{{count}} 個動作",
     "exerciseCount_other": "{{count}} 個動作",
-    "setsOfTotal": "{{done}}/{{total}} 組"
+    "setsOfTotal": "{{done}}/{{total}} 組",
+    "newPRBadge": "新紀錄",
+    "rpe": "RPE",
+    "note": "備註",
+    "rpeNote": "RPE / 備註",
+    "notePlaceholder": "如：感覺很重",
+    "repsUnit": "次",
+    "sessionsAxis": "{{count}} 次訓練"
   },
   "timer": {
     "restTimer": "休息計時",

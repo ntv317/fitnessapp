@@ -194,7 +194,14 @@
     "headline5": "อีกหนึ่งวันสำเร็จ",
     "exerciseCount_one": "{{count}} ท่า",
     "exerciseCount_other": "{{count}} ท่า",
-    "setsOfTotal": "{{done}}/{{total}} เซต"
+    "setsOfTotal": "{{done}}/{{total}} เซต",
+    "newPRBadge": "PR ใหม่",
+    "rpe": "RPE",
+    "note": "โน้ต",
+    "rpeNote": "RPE / โน้ต",
+    "notePlaceholder": "เช่น รู้สึกหนัก",
+    "repsUnit": "ครั้ง",
+    "sessionsAxis": "{{count}} เซสชัน"
   },
   "timer": {
     "restTimer": "จับเวลาพัก",
