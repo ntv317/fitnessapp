@@ -64,16 +64,26 @@ function ExerciseRow({
   const exerciseDisplayName = useExerciseDisplayName();
   const pct = target > 0 ? done / target : 0;
   const complete = target > 0 && done >= target;
-  const range = formatRepRange(exercise.repMin, exercise.repMax);
+  const range = formatRepRange(exercise.repMin, exercise.repMax, t('workout.repsUnit'));
   return (
     <TouchableOpacity style={styles.exRow} onPress={onPress} activeOpacity={0.6}>
       <View style={[styles.exDot, { backgroundColor: color }]} />
       <View style={{ flex: 1 }}>
         <AppText variant="bodyLg">{exerciseDisplayName(exercise)}</AppText>
         <View style={styles.exMetaRow}>
-          <AppText variant="labelMono" upper color={Colors.textMuted}>
-            {exercise.isCompound ? t('workout.compound') : t('workout.isolation')}{range ? ` · ${range}` : ''}
-          </AppText>
+          <View style={styles.exMetaLeft}>
+            {exercise.catalogId ? null : (
+              <Ionicons
+                name="person-outline"
+                size={11}
+                color={Colors.textMuted}
+                accessibilityLabel={t('library.myExercise')}
+              />
+            )}
+            <AppText variant="labelMono" upper color={Colors.textMuted} numberOfLines={1} style={{ flexShrink: 1 }}>
+              {exercise.isCompound ? t('workout.compound') : t('workout.isolation')}{range ? ` · ${range}` : ''}
+            </AppText>
+          </View>
           <AppText variant="labelMono" upper color={complete ? color : Colors.textMuted}>
             {complete ? t('workout.done') : t('workout.setsOfTotal', { done, total: target })}
           </AppText>
@@ -355,6 +365,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 2,
+  },
+  exMetaLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    gap: 4,
   },
   exTrack: {
     height: 3,

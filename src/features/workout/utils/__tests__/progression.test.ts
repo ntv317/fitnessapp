@@ -1,4 +1,34 @@
-import { suggestProgression, type SetLike } from '@/features/workout/utils/progression';
+import { suggestProgression, bestSet, type SetLike } from '@/features/workout/utils/progression';
+
+describe('bestSet', () => {
+  it('picks the heaviest set, not the first', () => {
+    expect(bestSet([{ weight: 60, reps: 12 }, { weight: 100, reps: 5 }])).toEqual({ weight: 100, reps: 5 });
+  });
+
+  it('keeps weight and reps from the same set', () => {
+    // The old prefill paired max weight (100) with set #1's reps (12) — a
+    // combination never actually performed.
+    const result = bestSet([{ weight: 100, reps: 5 }, { weight: 60, reps: 12 }]);
+    expect(result).toEqual({ weight: 100, reps: 5 });
+    expect(result?.reps).not.toBe(12);
+  });
+
+  it('breaks weight ties on the higher rep count', () => {
+    expect(bestSet([{ weight: 80, reps: 6 }, { weight: 80, reps: 9 }])).toEqual({ weight: 80, reps: 9 });
+  });
+
+  it('ignores sets with zero weight or reps', () => {
+    expect(bestSet([{ weight: 0, reps: 10 }, { weight: 50, reps: 0 }, { weight: 40, reps: 8 }])).toEqual({
+      weight: 40,
+      reps: 8,
+    });
+  });
+
+  it('returns null when nothing qualifies', () => {
+    expect(bestSet([])).toBeNull();
+    expect(bestSet([{ weight: 0, reps: 0 }])).toBeNull();
+  });
+});
 
 describe('suggestProgression', () => {
   describe('empty or invalid sets', () => {

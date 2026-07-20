@@ -209,7 +209,7 @@ export default function PlanEditorScreen() {
             </View>
 
             {day.exercises.map((ex) => {
-              const range = formatRepRange(ex.repMin, ex.repMax);
+              const range = formatRepRange(ex.repMin, ex.repMax, t('workout.repsUnit'));
               return (
                 <View key={ex.id} style={styles.exRow}>
                   <TouchableOpacity style={{ flex: 1 }} onPress={() => setEditingExercise(ex)} activeOpacity={0.6}>
