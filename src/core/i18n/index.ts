@@ -3,6 +3,7 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getLocales } from 'expo-localization';
+import WatchSync from '../../../modules/watch-sync';
 import en from './locales/en.json';
 import vi from './locales/vi.json';
 import th from './locales/th.json';
@@ -59,11 +60,21 @@ export async function initI18n(): Promise<void> {
     fallbackLng: 'en',
     interpolation: { escapeValue: false },
   });
+  syncLanguageToWatch(lng);
+}
+
+// The watch localizes off its own system locale, which ignores this app's
+// in-app picker — mirror the choice so both sides read the same language.
+// updateState merges into the stored applicationContext, so a call that lands
+// before WCSession finishes activating is re-sent with the next update.
+function syncLanguageToWatch(lang: AppLanguage): void {
+  WatchSync?.updateState({ language: lang });
 }
 
 export function setAppLanguage(lang: AppLanguage): void {
   i18n.changeLanguage(lang);
   AsyncStorage.setItem(STORAGE_KEY, lang).catch(() => {});
+  syncLanguageToWatch(lang);
 }
 
 export function currentLanguage(): AppLanguage {

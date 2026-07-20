@@ -73,11 +73,11 @@ struct SummaryView: View {
     private var statsSection: some View {
         VStack(spacing: 8) {
             SummaryStatCard(
-                label: String(localized: "TOTAL VOLUME"),
+                label: String(localized: "TOTAL VOLUME", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale),
                 value: volumeDisplay(session.workoutState.totalVolume),
                 unit: session.workoutState.unit
             )
-            SummaryStatCard(label: String(localized: "TIME"), value: "\(session.workoutState.elapsedMinutes)", unit: String(localized: "min"))
+            SummaryStatCard(label: String(localized: "TIME", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale), value: "\(session.workoutState.elapsedMinutes)", unit: String(localized: "min", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale))
         }
     }
 
@@ -99,7 +99,7 @@ struct SummaryView: View {
     private var finishButton: some View {
         Button(action: finish) {
             HStack(spacing: 6) {
-                Text(finished ? String(localized: "Done!") : String(localized: "Finish")).font(.system(size: 15, weight: .semibold))
+                Text(finished ? String(localized: "Done!", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale) : String(localized: "Finish", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale)).font(.system(size: 15, weight: .semibold))
                 Image(systemName: finished ? "checkmark.circle.fill" : "checkmark.square.fill").font(.system(size: 15))
             }
             .frame(maxWidth: .infinity).padding(.vertical, 8)

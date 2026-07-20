@@ -21,6 +21,24 @@ struct WorkoutState {
     // Locked until the phone positively confirms entitlement — a cold start
     // with no received context must not default to unlocked.
     var premiumRequired: Bool = true
+    // Mirrored from the phone's in-app language picker, which overrides the
+    // watch's own system locale. Empty until the phone syncs, so a cold start
+    // falls back to the system language rather than forcing English.
+    var language: String = ""
+
+    var locale: Locale { language.isEmpty ? .current : Locale(identifier: language) }
+
+    // Text(LocalizedStringKey) picks up the language from \.environment(\.locale),
+    // but String(localized:) resolves against a bundle at call time and ignores it
+    // — those sites pass this explicitly. English has no .lproj (it's the
+    // development language), so .main is the correct fallback.
+    var stringsBundle: Bundle {
+        guard !language.isEmpty,
+              let path = Bundle.main.path(forResource: language, ofType: "lproj"),
+              let bundle = Bundle(path: path)
+        else { return .main }
+        return bundle
+    }
 
     mutating func update(from dict: [String: Any]) {
         if let v = dict["exerciseName"] as? String { exerciseName = v }
@@ -41,5 +59,6 @@ struct WorkoutState {
         if let v = dict["showPlateBreakdown"] as? Bool { showPlateBreakdown = v }
         if let v = dict["accentColor"] as? String { accentColor = v }
         if let v = dict["premiumRequired"] as? Bool { premiumRequired = v }
+        if let v = dict["language"] as? String { language = v }
     }
 }
