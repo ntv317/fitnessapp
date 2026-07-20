@@ -20,9 +20,11 @@ const MARGIN = 20; // margin-mobile
 
 // ── Plan lookups ─────────────────────────────────────────────────────────────
 
+// Empty when no muscle groups can be derived — "Custom" is not a muscle group,
+// and the exercises themselves are individually marked as custom.
 function musclesForExercises(exercises: Exercise[]): string {
   const withCatalog = exercises.filter((ex) => ex.catalogId);
-  if (withCatalog.length === 0) return i18n.t('workout.custom');
+  if (withCatalog.length === 0) return '';
   // Deferred require: a top-level import here would pull in the ~0.8MB
   // catalog JSON on every Log tab render, even for a plan with no
   // catalog-linked exercises (or no plan at all yet). Only load it once a
@@ -38,7 +40,7 @@ function musclesForExercises(exercises: Exercise[]): string {
   }
   return groups.size > 0
     ? Array.from(groups).map((g) => i18n.t(`muscleGroups.${g}`)).join(' / ')
-    : i18n.t('workout.custom');
+    : '';
 }
 
 function estMinutes(exerciseCount: number): number {
@@ -64,14 +66,23 @@ function ExerciseRow({
   const exerciseDisplayName = useExerciseDisplayName();
   const pct = target > 0 ? done / target : 0;
   const complete = target > 0 && done >= target;
-  const range = formatRepRange(exercise.repMin, exercise.repMax);
+  const range = formatRepRange(exercise.repMin, exercise.repMax, t('workout.repsUnit'));
   return (
     <TouchableOpacity style={styles.exRow} onPress={onPress} activeOpacity={0.6}>
       <View style={[styles.exDot, { backgroundColor: color }]} />
       <View style={{ flex: 1 }}>
-        <AppText variant="bodyLg">{exerciseDisplayName(exercise)}</AppText>
+        <View style={styles.exNameRow}>
+          <AppText variant="bodyLg" numberOfLines={1} style={{ flexShrink: 1 }}>
+            {exerciseDisplayName(exercise)}
+          </AppText>
+          {exercise.catalogId ? null : (
+            <AppText variant="bodyLg" color={Colors.textMuted} accessibilityLabel={t('library.myExercise')}>
+              *
+            </AppText>
+          )}
+        </View>
         <View style={styles.exMetaRow}>
-          <AppText variant="labelMono" upper color={Colors.textMuted}>
+          <AppText variant="labelMono" upper color={Colors.textMuted} numberOfLines={1} style={{ flexShrink: 1 }}>
             {exercise.isCompound ? t('workout.compound') : t('workout.isolation')}{range ? ` · ${range}` : ''}
           </AppText>
           <AppText variant="labelMono" upper color={complete ? color : Colors.textMuted}>
@@ -111,6 +122,7 @@ function DayCard({
   const { t } = useTranslation();
   const color = dayColorForTag(dayTag);
   const exCount = exercises.length;
+  const muscles = musclesForExercises(exercises);
   const { done, total, pct, complete } = progress;
 
   return (
@@ -119,7 +131,9 @@ function DayCard({
 
       <TouchableOpacity style={styles.cardHead} onPress={onToggle} activeOpacity={0.7}>
         <View style={{ flex: 1 }}>
-          <AppText variant="labelMono" upper color={color}>{musclesForExercises(exercises)}</AppText>
+          {muscles ? (
+            <AppText variant="labelMono" upper color={color}>{muscles}</AppText>
+          ) : null}
           <View style={styles.nameRow}>
             <AppText variant="headlineMd">{dayTag}</AppText>
           </View>
@@ -355,6 +369,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginTop: 2,
+  },
+  exNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   exTrack: {
     height: 3,

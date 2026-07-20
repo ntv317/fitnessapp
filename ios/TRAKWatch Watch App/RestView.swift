@@ -57,8 +57,8 @@ struct RestView: View {
                 // After the final set, setNumber (next open slot) exceeds
                 // totalSets — "Set 4 of 3" is nonsense, say what's true instead.
                 Text(session.workoutState.setNumber > session.workoutState.totalSets
-                     ? String(localized: "All sets done")
-                     : String(localized: "Set \(session.workoutState.setNumber) of \(session.workoutState.totalSets)"))
+                     ? String(localized: "All sets done", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale)
+                     : String(localized: "Set \(session.workoutState.setNumber) of \(session.workoutState.totalSets)", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale))
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(.secondary)
             }

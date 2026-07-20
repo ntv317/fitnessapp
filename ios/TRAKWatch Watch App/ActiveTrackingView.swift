@@ -53,22 +53,25 @@ struct ActiveTrackingView: View {
         }
     }
 
+    // Empty with no history: the right label's job is to show the previous
+    // value, and the old "WEIGHT"/"COUNT" fallback just restated the left
+    // label ("Weight (kg) … WEIGHT"), which reads as a rendering bug.
     private var weightPrev: String {
         session.workoutState.suggestedWeight > 0
-            ? String(format: String(localized: "%@ PREV"), Self.format(session.workoutState.suggestedWeight))
-            : String(localized: "WEIGHT")
+            ? String(format: String(localized: "%@ PREV", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale), Self.format(session.workoutState.suggestedWeight))
+            : ""
     }
 
     private var repsPrev: String {
         session.workoutState.suggestedReps > 0
-            ? String(format: String(localized: "%lld PREV"), session.workoutState.suggestedReps)
-            : String(localized: "COUNT")
+            ? String(format: String(localized: "%lld PREV", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale), session.workoutState.suggestedReps)
+            : ""
     }
 
     private var weightCard: some View {
         let accent = Color(hex: session.workoutState.accentColor)
         return InputCard(
-            leftLabel: String(format: String(localized: "Weight (%@)"), unitLabel),
+            leftLabel: String(format: String(localized: "Weight (%@)", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale), unitLabel),
             rightLabel: weightPrev,
             rightLabelColor: session.workoutState.suggestedWeight > 0 ? accent : .secondary
         ) {
@@ -135,7 +138,7 @@ struct ActiveTrackingView: View {
     private var repsCard: some View {
         let accent = Color(hex: session.workoutState.accentColor)
         return InputCard(
-            leftLabel: String(localized: "Reps"),
+            leftLabel: String(localized: "Reps", bundle: session.workoutState.stringsBundle, locale: session.workoutState.locale),
             rightLabel: repsPrev,
             rightLabelColor: session.workoutState.suggestedReps > 0 ? accent : .secondary
         ) {

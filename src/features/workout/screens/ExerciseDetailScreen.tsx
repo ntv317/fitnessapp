@@ -26,7 +26,7 @@ import { useWatchSync, type WatchSetLogged } from '../hooks/useWatchSync';
 import { useBarbellConfig } from '../hooks/useBarbellConfig';
 import { calculatePlates } from '@/core/utils/plateCalculator';
 import { detectPR } from '../utils/pr';
-import { suggestProgression } from '../utils/progression';
+import { suggestProgression, bestSet } from '../utils/progression';
 import { startSession, addExerciseResult, getSession } from '../utils/workoutSession';
 import { formatWeight } from '@/core/utils/format';
 import * as Notifications from 'expo-notifications';
@@ -326,14 +326,21 @@ export default function ExerciseDetailScreen() {
   // changes actually show here. Falls back to the catalog when the exercise
   // carries no group of its own.
   const muscleLabel = exercise?.muscleGroup
-    ? [exercise.muscleGroup, ...(exercise.secondaryMuscleGroups ?? [])].join(' / ')
+    ? [exercise.muscleGroup, ...(exercise.secondaryMuscleGroups ?? [])]
+        .map((m) => t(`muscleGroups.${m}`, { defaultValue: m }))
+        .join(' / ')
     : catalogExercise
-      ? [...catalogExercise.primaryMuscles, ...catalogExercise.secondaryMuscles].slice(0, 3).join(' / ')
+      ? [...catalogExercise.primaryMuscles, ...catalogExercise.secondaryMuscles]
+          .slice(0, 3)
+          .map((m) => t(`exerciseMeta.muscles.${m}`, { defaultValue: m }))
+          .join(' / ')
       : null;
   const metaLabel = [
     exercise?.isCompound ? t('workout.compound') : t('workout.isolation'),
     muscleLabel,
-    isExactCatalog ? catalogExercise?.equipment ?? null : null,
+    isExactCatalog && catalogExercise?.equipment
+      ? t(`exerciseMeta.equipment.${catalogExercise.equipment}`, { defaultValue: catalogExercise.equipment })
+      : null,
   ]
     .filter(Boolean)
     .join(' • ');
@@ -381,7 +388,7 @@ export default function ExerciseDetailScreen() {
   const planEntry = dayExercises.find((e) => e.id === exerciseId);
   const targetSource = planEntry ?? exercise;
   const target = targetSource && targetSource.targetSets > 0 ? targetSource.targetSets : DEFAULT_TARGET_SETS;
-  const repRangeLabel = formatRepRange(planEntry?.repMin, planEntry?.repMax);
+  const repRangeLabel = formatRepRange(planEntry?.repMin, planEntry?.repMax, t('workout.repsUnit'));
 
   // Today's log for this day, derived straight from history. Recomputed every
   // render (not memoized once at mount) — a session left open across midnight
@@ -429,23 +436,34 @@ export default function ExerciseDetailScreen() {
         : null,
     [isPro, priorSession, planEntry],
   );
-  // Takes an explicit loggedN (rather than closing over `loggedCount`) so
+  const bestPriorSet = useMemo(() => bestSet(priorSession?.sets ?? []), [priorSession]);
+
+  // Takes the sets array (rather than closing over `todaySets`) so
   // pushWatchState can compute the prefill for the set AFTER whatever was just
-  // logged, using the fresh count passed to it — not a stale pre-increment
-  // value from this render.
+  // logged, using the fresh array passed to it — not a stale value from this
+  // render.
   const prefillFor = useCallback(
-    (loggedN: number) => {
-      const atNext = priorSession?.sets.find((s) => s.setOrder === loggedN + 1) ?? priorSession?.sets[loggedN];
+    (sets: LoggedSet[]) => {
+      // Sets 2+ continue this session: carry the previous set forward exactly,
+      // unclamped — the lifter picked those numbers seconds ago and the plan's
+      // range must not silently rewrite them.
+      const last = sets[sets.length - 1];
+      if (last) return { weightKg: last.weight, reps: last.reps };
+      // Set 1 matches the progression chip shown above the input, so the
+      // suggestion and the prefilled numbers never disagree. suggestProgression
+      // already keeps reps inside the plan's range.
+      if (progression) return { weightKg: progression.weightKg, reps: progression.reps };
+      // No progression (no history, or not Pro): seed from the top set, clamped
+      // so a stale range from an older plan doesn't propose reps it no longer
+      // prescribes.
       return {
-        weightKg: atNext && atNext.weight > 0 ? atNext.weight : suggestedWeight,
-        // Keep the suggestion inside the plan's rep range so a stale history
-        // value doesn't propose reps the plan no longer prescribes.
-        reps: clampReps(atNext && atNext.reps > 0 ? atNext.reps : suggestedReps, planEntry?.repMin, planEntry?.repMax),
+        weightKg: bestPriorSet?.weight ?? 0,
+        reps: clampReps(bestPriorSet?.reps ?? suggestedReps, planEntry?.repMin, planEntry?.repMax),
       };
     },
-    [priorSession, suggestedWeight, suggestedReps, planEntry],
+    [progression, bestPriorSet, suggestedReps, planEntry],
   );
-  const { weightKg: prefillWeightKg, reps: prefillReps } = prefillFor(loggedCount);
+  const { weightKg: prefillWeightKg, reps: prefillReps } = prefillFor(todaySets);
 
   const [restSeconds, setRestSeconds] = useState<number | null>(null);
   const [restKey, setRestKey] = useState(0);
@@ -466,7 +484,7 @@ export default function ExerciseDetailScreen() {
   const pushWatchState = useCallback(
     (updatedSets: LoggedSet[], isResting: boolean, restDuration: number) => {
       const loggedN = updatedSets.length;
-      const { weightKg: nextWeightKg, reps: nextReps } = prefillFor(loggedN);
+      const { weightKg: nextWeightKg, reps: nextReps } = prefillFor(updatedSets);
       const weightForPlates = nextWeightKg > 0 ? nextWeightKg : suggestedWeight;
       const { plates } = calculatePlates(weightForPlates, barbellConfig.barWeight, barbellConfig.plates);
       // Session-so-far stats for the watch summary card. The current exercise
