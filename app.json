@@ -15,6 +15,7 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "io.liftr.app",
+      "buildNumber": "15",
       "usesIcloudStorage": true,
       "entitlements": {
         "com.apple.developer.icloud-container-identifiers": ["iCloud.io.liftr.app"],
