@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { format } from 'date-fns';
+import { useTranslation } from 'react-i18next';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
 import { AppText } from '@/core/ui';
 import { useUnit } from '@/core/context/UnitContext';
@@ -15,6 +16,7 @@ interface SessionHistoryListProps {
 
 /** Every logged session for this exercise, newest first, grouped by date. Tap a set row to edit it. */
 export function SessionHistoryList({ logs, accent, onEditSet }: SessionHistoryListProps) {
+  const { t } = useTranslation();
   const { fromKg, unit } = useUnit();
 
   if (logs.length === 0) return null;
@@ -35,10 +37,10 @@ export function SessionHistoryList({ logs, accent, onEditSet }: SessionHistoryLi
           <View style={styles.setsBlock}>
             <View style={styles.headRow}>
               <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.col}>
-                Weight ({unit})
+                {t('workout.weight')} ({unit})
               </AppText>
               <AppText variant="labelMono" upper color={Colors.textMuted} style={styles.col}>
-                Reps
+                {t('workout.reps')}
               </AppText>
             </View>
             {log.sets.map((s) => (

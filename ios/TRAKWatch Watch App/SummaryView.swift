@@ -99,7 +99,7 @@ struct SummaryView: View {
     private var finishButton: some View {
         Button(action: finish) {
             HStack(spacing: 6) {
-                Text(finished ? "Done!" : "Finish").font(.system(size: 15, weight: .semibold))
+                Text(finished ? String(localized: "Done!") : String(localized: "Finish")).font(.system(size: 15, weight: .semibold))
                 Image(systemName: finished ? "checkmark.circle.fill" : "checkmark.square.fill").font(.system(size: 15))
             }
             .frame(maxWidth: .infinity).padding(.vertical, 8)

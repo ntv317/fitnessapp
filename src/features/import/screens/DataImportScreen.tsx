@@ -88,7 +88,7 @@ export default function DataImportScreen() {
       qc.invalidateQueries({ queryKey: ['plans'] });
     } else {
       setStatus('error');
-      setMessage(result.error);
+      setMessage(t(`import.error_${result.code}`));
     }
   }, [json, service, qc]);
 

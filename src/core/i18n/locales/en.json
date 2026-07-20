@@ -340,7 +340,14 @@
     "headline5": "One more done.",
     "exerciseCount_one": "{{count}} exercise",
     "exerciseCount_other": "{{count}} exercises",
-    "setsOfTotal": "{{done}}/{{total}} sets"
+    "setsOfTotal": "{{done}}/{{total}} sets",
+    "newPRBadge": "NEW PR",
+    "rpe": "RPE",
+    "note": "Note",
+    "rpeNote": "RPE / Note",
+    "notePlaceholder": "e.g. felt heavy",
+    "repsUnit": "reps",
+    "sessionsAxis": "{{count}} sessions"
   },
   "timer": {
     "restTimer": "Rest Timer",
@@ -364,7 +371,10 @@
     "importButton": "Import Weekly Plan",
     "successMessage": "✓ Plan imported & set active — {{days}} days · {{exercises}} exercises",
     "aiPromptGoal": "My goal: [REPLACE — e.g. \"build muscle, 4 days/week, intermediate\"]",
-    "aiPromptLang": ""
+    "aiPromptLang": "",
+    "error_parse": "That doesn't look like valid JSON. Paste the AI's full response.",
+    "error_validation": "That JSON isn't in the expected format. Check the example and try again.",
+    "error_db": "Import failed. Please try again."
   },
   "premium": {
     "benefitBackup": "iCloud Backup — never lose a PR",
@@ -394,7 +404,12 @@
     "continue": "Continue",
     "restorePurchases": "Restore Purchases",
     "terms": "Terms",
-    "privacy": "Privacy"
+    "privacy": "Privacy",
+    "freeTrial": "{{count}}-{{unit}} free trial",
+    "periodDay": "day",
+    "periodWeek": "week",
+    "periodMonth": "month",
+    "periodYear": "year"
   },
   "stats": {
     "totalVolume": "Total Volume",

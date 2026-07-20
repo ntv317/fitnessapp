@@ -64,7 +64,7 @@
     "deleteLogBody": "Không thể hoàn tác.",
     "sets_one": "{{count}} set",
     "sets_other": "{{count}} set",
-    "vol": "{{value}} {{unit}} vol",
+    "vol": "{{value}} {{unit}} khối lượng",
     "loading": "Đang tải…"
   },
   "backup": {
@@ -135,8 +135,8 @@
     "noPlansBody": "Đi tới tab Kế hoạch để xây dựng hoặc kích hoạt một split.",
     "currentSplit": "Split Hiện Tại",
     "selectDayPrompt": "Chọn một ngày, sau đó nhấn vào một bài tập để bắt đầu ghi.",
-    "compound": "Compound",
-    "isolation": "Isolation",
+    "compound": "Đa khớp",
+    "isolation": "Cô lập",
     "exercises": "Bài tập",
     "min": "Phút",
     "thisWeek": "Tuần này",
@@ -194,7 +194,14 @@
     "headline5": "Thêm một buổi nữa.",
     "exerciseCount_one": "{{count}} bài tập",
     "exerciseCount_other": "{{count}} bài tập",
-    "setsOfTotal": "{{done}}/{{total}} set"
+    "setsOfTotal": "{{done}}/{{total}} set",
+    "newPRBadge": "PR MỚI",
+    "rpe": "RPE",
+    "note": "Ghi chú",
+    "rpeNote": "RPE / Ghi chú",
+    "notePlaceholder": "vd. thấy nặng",
+    "repsUnit": "lượt",
+    "sessionsAxis": "{{count}} buổi tập"
   },
   "timer": {
     "restTimer": "Hẹn giờ nghỉ",
@@ -218,7 +225,10 @@
     "importButton": "Nhập giáo án tuần",
     "successMessage": "✓ Đã nhập giáo án & đặt làm hiện hành — {{days}} ngày · {{exercises}} bài tập",
     "aiPromptGoal": "Mục tiêu của tôi: [THAY BẰNG — ví dụ: \"tăng cơ, 4 buổi/tuần, trình độ trung bình\"]",
-    "aiPromptLang": "Ngôn ngữ: Tôi dùng ứng dụng bằng tiếng Việt. Hãy viết các giá trị \"day\" bằng tiếng Việt, nhưng giữ nguyên mọi \"name\" bài tập bằng tiếng Anh đúng như đã nêu ở trên, và giữ nguyên các giá trị muscleGroup như đã liệt kê. Mục tiêu của tôi bên dưới có thể được viết bằng tiếng Việt."
+    "aiPromptLang": "Ngôn ngữ: Tôi dùng ứng dụng bằng tiếng Việt. Hãy viết các giá trị \"day\" bằng tiếng Việt, nhưng giữ nguyên mọi \"name\" bài tập bằng tiếng Anh đúng như đã nêu ở trên, và giữ nguyên các giá trị muscleGroup như đã liệt kê. Mục tiêu của tôi bên dưới có thể được viết bằng tiếng Việt.",
+    "error_parse": "Đó không phải JSON hợp lệ. Hãy dán toàn bộ phản hồi của AI.",
+    "error_validation": "JSON không đúng định dạng mong đợi. Hãy kiểm tra ví dụ và thử lại.",
+    "error_db": "Nhập không thành công. Vui lòng thử lại."
   },
   "premium": {
     "benefitBackup": "Sao lưu iCloud — không bao giờ mất PR",
@@ -248,7 +258,12 @@
     "continue": "Tiếp tục",
     "restorePurchases": "Khôi phục giao dịch",
     "terms": "Điều khoản",
-    "privacy": "Quyền riêng tư"
+    "privacy": "Quyền riêng tư",
+    "freeTrial": "Dùng thử miễn phí {{count}} {{unit}}",
+    "periodDay": "ngày",
+    "periodWeek": "tuần",
+    "periodMonth": "tháng",
+    "periodYear": "năm"
   },
   "tabs": {
     "exercises": "Bài tập",

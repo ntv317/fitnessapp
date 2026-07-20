@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import type { PurchasesPackage } from 'react-native-purchases';
 import { AppText, Button } from '@/core/ui';
 import { Colors, Spacing, Radius, Fonts } from '@/core/theme';
@@ -28,13 +29,21 @@ const getBenefits = (t: (key: string) => string) => [
   { icon: 'shield-checkmark-outline' as const, label: t('premium.benefitPrivate') },
 ];
 
+const TRIAL_UNIT_KEYS: Record<string, string> = {
+  DAY: 'premium.periodDay',
+  WEEK: 'premium.periodWeek',
+  MONTH: 'premium.periodMonth',
+  YEAR: 'premium.periodYear',
+};
+
 // A free intro offer configured in App Store Connect, e.g. "7-day free trial".
 // Derived from the store so the screen can never claim a trial that no longer
 // exists (App Store rejection / refund-dispute risk).
-function trialLabel(pkg: PurchasesPackage | undefined): string | null {
+function trialLabel(pkg: PurchasesPackage | undefined, t: TFunction): string | null {
   const intro = pkg?.product.introPrice;
   if (!intro || intro.price !== 0) return null;
-  return `${intro.periodNumberOfUnits}-${intro.periodUnit.toLowerCase()} free trial`;
+  const unit = t(TRIAL_UNIT_KEYS[intro.periodUnit] ?? 'premium.periodDay');
+  return t('premium.freeTrial', { count: intro.periodNumberOfUnits, unit });
 }
 
 export default function PaywallScreen() {
@@ -55,7 +64,7 @@ export default function PaywallScreen() {
   // (or when offerings fail to load) misstates the real charge.
   const priceFor = (plan: PlanKey) => packages[plan]?.product.priceString ?? '—';
 
-  const trial = trialLabel(packages.yearly);
+  const trial = trialLabel(packages.yearly, t);
   const monthlyPrice = packages.monthly?.product.price;
   const yearlyPrice = packages.yearly?.product.price;
   const savePct =

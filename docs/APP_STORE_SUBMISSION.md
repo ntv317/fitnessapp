@@ -60,8 +60,8 @@ Apple combines them, so every duplicate wastes a slot.
 > LIFTREPS is a no-nonsense workout logger for people who lift.
 >
 > Log sets in two taps, follow your weekly split, and let the rest timer run
-> on your lock screen and Apple Watch — no account, no ads, no cloud. Your
-> training data stays on your device.
+> on your lock screen and Apple Watch — no account, no ads, no tracking. Your
+> data stays on your device, with an optional backup to your own private iCloud.
 >
 > - Fast set logging with weight/rep steppers and plate-per-side breakdown
 > - Rest timer with Live Activity on the lock screen and a watchOS companion
@@ -70,7 +70,7 @@ Apple combines them, so every duplicate wastes a slot.
 > - 870+ exercise library with photos and step-by-step instructions
 > - Import a full training plan as JSON (works great with AI-generated plans)
 > - Per-set RPE and notes, body-weight tracking, kg/lb support
-> - 100% offline-first: everything is stored on your iPhone
+> - Offline-first: everything is stored on your iPhone, with optional backup to your own private iCloud
 
 - **Keywords (100 chars):**
   `workout,log,lifting,gym,tracker,sets,reps,barbell,rest timer,strength,plan,routine,progress`
@@ -80,6 +80,24 @@ Apple combines them, so every duplicate wastes a slot.
 **App Privacy questionnaire:** select **"Data is not collected"** for
 everything. The only network traffic is exercise images from a public CDN
 (jsDelivr) with no identifiers — that does not count as data collection.
+(The optional iCloud backup writes to the user's own private iCloud container,
+not to us, so it is not "data collection" either.)
+
+**In-App Purchases: submit as Free with NO IAPs attached.** The paywall ships
+disabled (`PAYWALL_ENABLED = false`), so every feature is free and no purchase
+UI appears anywhere in the app. The RevenueCat products
+(`io.liftr.app.pro.monthly/yearly/lifetime`) must be left **unattached** to this
+version in App Store Connect. Attaching them would send a reviewer looking for an
+in-app purchase that no screen surfaces — a guaranteed Guideline 2.1 rejection.
+
+**App Review Notes (paste into the "Notes" field):**
+
+> This build is fully free — all features are unlocked, and there are no in-app
+> purchases in the user flow.
+>
+> Apple Watch companion: launch the iPhone app once first. On first run the phone
+> activates the paired watch app (over WatchConnectivity); opening the watch app
+> before the iPhone app shows a brief "open on your iPhone" prompt by design.
 
 ## 4. Screenshots **[YOU + Claude can generate]**
 

@@ -3,6 +3,14 @@
 // paywall entry points hide themselves (they are gated behind !isPro). Flip
 // back to true — plus set REVENUECAT_API_KEY_IOS below — to re-enable paid
 // gating with no other code changes.
+//
+// RE-ENABLEMENT CHECKLIST (all become true the moment this flips on):
+//   - App Store Connect: attach the IAP products and re-add "Pro" to metadata.
+//   - Privacy policy §5 and the "Data Not Collected" App Privacy label are no
+//     longer accurate (RevenueCat processes purchase + a RC app-user-id):
+//     update privacy-policy.html, App Privacy answers, and
+//     ios/FitnessApp/PrivacyInfo.xcprivacy (NSPrivacyCollectedDataTypes).
+//   - Localize the IAP display names/descriptions in all 6 storefronts.
 export const PAYWALL_ENABLED = false;
 
 // Public SDK key from RevenueCat → Project Settings → API Keys (appl_...).
