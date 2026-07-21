@@ -541,12 +541,18 @@ export default function ExerciseDetailScreen() {
     cancelRestNotification();
   }, [cancelRestNotification]);
 
-  // Push initial state when exercise loads
+  // Push initial state when the exercise loads AND again once today's sets
+  // finish seeding from history — the seed is async, so the first push often
+  // runs with an empty set list and the watch would otherwise show the set-1
+  // prefill (e.g. 40x11) while the phone already shows the carry-forward
+  // (47.5x10). Guarded so it never overwrites a live session: once a set is
+  // logged, completeSet owns the watch state (touchedRef), and rest only
+  // starts after that, so restSeconds is always null in this window.
   useEffect(() => {
-    if (!exercise) return;
-    pushWatchState(todaySetsRef.current, false, exercise.defaultRestSeconds);
+    if (!exercise || touchedRef.current || restSeconds != null) return;
+    pushWatchState(todaySets, false, exercise.defaultRestSeconds);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exercise?.id]);
+  }, [exercise?.id, todaySets]);
 
   // Single source of truth for logging a new set — used by both the "+" button
   // and sets logged from the watch. Appends it, persists it, starts the rest
