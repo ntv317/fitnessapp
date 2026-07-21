@@ -1,6 +1,6 @@
 import ExpoModulesCore
 
-private let CONTAINER_ID = "iCloud.io.liftr.app"
+private let CONTAINER_ID = "iCloud.io.liftr.liftreps"
 private let MAX_BACKUPS = 3
 private let DOWNLOAD_TIMEOUT: TimeInterval = 60
 

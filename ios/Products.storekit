@@ -15,7 +15,7 @@
           "locale" : "en_US"
         }
       ],
-      "productID" : "io.liftr.app.pro.lifetime",
+      "productID" : "io.liftr.liftreps.pro.lifetime",
       "referenceName" : "Pro Lifetime",
       "type" : "NonConsumable"
     }
@@ -55,7 +55,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "io.liftr.app.pro.monthly",
+          "productID" : "io.liftr.liftreps.pro.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Pro Monthly",
           "subscriptionGroupID" : "B1B2C3D4-0002-4000-8000-000000000002",
@@ -84,7 +84,7 @@
               "locale" : "en_US"
             }
           ],
-          "productID" : "io.liftr.app.pro.yearly",
+          "productID" : "io.liftr.liftreps.pro.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Pro Yearly",
           "subscriptionGroupID" : "B1B2C3D4-0002-4000-8000-000000000002",

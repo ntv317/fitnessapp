@@ -10,7 +10,7 @@
 ---
 
 **App:** LIFTREPS — Gym Workout Tracker
-**Bundle ID:** io.liftr.app (watch: io.liftr.app.watchkitapp · widgets: io.liftr.app.LIFTREPSWidgets)
+**Bundle ID:** io.liftr.liftreps (watch: io.liftr.liftreps.watchkitapp · widgets: io.liftr.liftreps.LIFTREPSWidgets)
 **Submission ID / Version:** [FILL IN]
 **Date:** [FILL IN]
 

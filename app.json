@@ -14,13 +14,13 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "io.liftr.app",
+      "bundleIdentifier": "io.liftr.liftreps",
       "buildNumber": "15",
       "usesIcloudStorage": true,
       "entitlements": {
-        "com.apple.developer.icloud-container-identifiers": ["iCloud.io.liftr.app"],
+        "com.apple.developer.icloud-container-identifiers": ["iCloud.io.liftr.liftreps"],
         "com.apple.developer.icloud-services": ["CloudDocuments"],
-        "com.apple.developer.ubiquity-container-identifiers": ["iCloud.io.liftr.app"]
+        "com.apple.developer.ubiquity-container-identifiers": ["iCloud.io.liftr.liftreps"]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
