@@ -7,7 +7,7 @@ App Store Connect access; everything else is done or scripted.
 
 | Item | Status |
 |------|--------|
-| Bundle IDs | `io.liftr.app` + `io.liftr.app.watchkitapp` + `io.liftr.app.LIFTREPSWidgets` |
+| Bundle IDs | `io.liftr.liftreps` + `io.liftr.liftreps.watchkitapp` + `io.liftr.liftreps.LIFTREPSWidgets` |
 | Version / build | 1.0 (build 2) |
 | Export compliance | `ITSAppUsesNonExemptEncryption = false` already set |
 | App icon | 1024px dumbbell mark in `Images.xcassets` — done |
@@ -86,7 +86,7 @@ not to us, so it is not "data collection" either.)
 **In-App Purchases: submit as Free with NO IAPs attached.** The paywall ships
 disabled (`PAYWALL_ENABLED = false`), so every feature is free and no purchase
 UI appears anywhere in the app. The RevenueCat products
-(`io.liftr.app.pro.monthly/yearly/lifetime`) must be left **unattached** to this
+(`io.liftr.liftreps.pro.monthly/yearly/lifetime`) must be left **unattached** to this
 version in App Store Connect. Attaching them would send a reviewer looking for an
 in-app purchase that no screen surfaces — a guaranteed Guideline 2.1 rejection.
 

@@ -28,7 +28,7 @@ export const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/d
 export const PRIVACY_URL = 'https://ntv317.github.io/fitnessapp/privacy-policy.html';
 
 export const PRODUCT_IDS = {
-  monthly: 'io.liftr.app.pro.monthly',
-  yearly: 'io.liftr.app.pro.yearly',
-  lifetime: 'io.liftr.app.pro.lifetime',
+  monthly: 'io.liftr.liftreps.pro.monthly',
+  yearly: 'io.liftr.liftreps.pro.yearly',
+  lifetime: 'io.liftr.liftreps.pro.lifetime',
 } as const;

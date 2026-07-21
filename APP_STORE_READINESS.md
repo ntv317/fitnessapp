@@ -37,14 +37,14 @@ declared or created in App Store Connect** for this release.
 | Item | Status | Notes |
 |---|---|---|
 | App name / display name | ✅ | `LIFTREPS` (CFBundleDisplayName + app.json) |
-| Bundle ID | ✅ | `io.liftr.app` |
+| Bundle ID | ✅ | `io.liftr.liftreps` |
 | Version string | ✅ | Aligned to **1.0.0** across app.json, `MARKETING_VERSION` (×6), main Info.plist |
 | Build number | ✅ | `2` (must be unique per upload — bump if you re-upload) |
 | Code signing | ✅ | Manual, team `HF9JSGH879`, App Store profiles for app/watch/widgets |
 | Encryption declaration | ✅ | `ITSAppUsesNonExemptEncryption = false` → skips export compliance |
 | Privacy manifest | ✅ | `PrivacyInfo.xcprivacy` present (FileTimestamp/UserDefaults/DiskSpace/BootTime reasons) |
 | App Transport Security | ✅ | `NSAllowsArbitraryLoads = false` (only local networking allowed) |
-| iCloud entitlement | ✅ | CloudDocuments + container `iCloud.io.liftr.app` |
+| iCloud entitlement | ✅ | CloudDocuments + container `iCloud.io.liftr.liftreps` |
 | Push / APNs | ✅ n/a | No `aps-environment` entitlement; `expo-notifications` used for **local** rest-timer notifications only |
 | Live Activities | ✅ | `NSSupportsLiveActivities = true`, TRAKWidgets extension present |
 | Min iOS | ✅ | `LSMinimumSystemVersion 12.0` (verify RN 0.81 floor; typically 15.1+) |
