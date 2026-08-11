@@ -37,10 +37,12 @@ import {
 } from '../../../../modules/live-activity';
 import { ImageCarousel } from '@/features/library/components/ImageCarousel';
 import { getById } from '@/features/library/services/ExerciseCatalog';
+import { groupOf } from '@/features/library/utils/muscleGroups';
 import { findClosestCatalogMatch, normalizeName } from '@/features/import/services/catalogMatch';
 import { ChartTabs } from '../components/detail/ChartTabs';
 import { SetInputCard, type EditingSetData } from '../components/detail/SetInputCard';
 import { SessionHistoryList } from '../components/detail/SessionHistoryList';
+import { ExerciseSwitchSheet } from '../components/detail/ExerciseSwitchSheet';
 import type { WorkoutLog } from '@/core/database/types';
 
 // Per-screen-instance so auto-advance (replace mounts the next exercise before
@@ -284,6 +286,7 @@ export default function ExerciseDetailScreen() {
   const accent = params.color || Colors.primary;
   const startTimeRef = useRef(params.startTime ? parseInt(params.startTime) : Date.now());
   const [celebrateData, setCelebrateData] = useState<CelebrateData | null>(null);
+  const [switchVisible, setSwitchVisible] = useState(false);
 
   const { unit, toKg, fromKg, showConversion, showPlateBreakdown } = useUnit();
   const { schedule: scheduleRestNotification, cancel: cancelRestNotification } = useRestNotification();
@@ -646,6 +649,26 @@ export default function ExerciseDetailScreen() {
     }
   }, [nextExercise, router, accent, params.day]);
 
+  // Switch to a different exercise mid-session, keeping the same day/session so
+  // its sets still count toward this day's progress — same param shape as the
+  // auto-advance flow.
+  const handleSwitch = useCallback(
+    (newId: number) => {
+      setSwitchVisible(false);
+      if (newId === exerciseId) return;
+      router.replace({
+        pathname: '/exercise/[id]',
+        params: {
+          id: String(newId),
+          color: accent,
+          day: params.day ?? '',
+          startTime: String(startTimeRef.current),
+        },
+      } as never);
+    },
+    [exerciseId, router, accent, params.day],
+  );
+
   // Watch "Skip Rest" routes here once endRest exists.
   handleSkipRef.current = () => endRest(false);
 
@@ -809,6 +832,13 @@ export default function ExerciseDetailScreen() {
         </View>
         <View style={styles.appBarRight}>
           <TouchableOpacity
+            onPress={() => setSwitchVisible(true)}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={styles.moreBtn}
+          >
+            <Ionicons name="swap-horizontal" size={22} color={Colors.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             onPress={() =>
               router.push({ pathname: '/library/exercise-form', params: { exerciseId: String(exerciseId) } } as never)
             }
@@ -907,6 +937,18 @@ export default function ExerciseDetailScreen() {
           onNext={handleCelebrateNext}
         />
       )}
+
+      <ExerciseSwitchSheet
+        key={exerciseId}
+        visible={switchVisible}
+        onClose={() => setSwitchVisible(false)}
+        currentExerciseId={exerciseId}
+        currentCatalogId={exercise?.catalogId ?? null}
+        currentMuscleGroup={
+          exercise?.muscleGroup ?? (catalogExercise ? groupOf(catalogExercise.primaryMuscles) : null)
+        }
+        onSwitch={handleSwitch}
+      />
     </SafeAreaView>
   );
 }
