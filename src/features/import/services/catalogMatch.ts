@@ -173,6 +173,28 @@ export function findClosestCatalogMatch(name: string): CatalogExercise | null {
   return best;
 }
 
+/**
+ * Rank candidates by name closeness to `referenceName`, closest first. Score is
+ * the count of shared normalized tokens; ties preserve the input order (callers
+ * pass lists already sorted for display). `topScore` lets the UI flag a real
+ * closest match (> 0) rather than labelling the head of a list where nothing
+ * actually resembles the reference.
+ */
+export function rankByNameCloseness<T extends { name: string }>(
+  referenceName: string,
+  candidates: T[],
+): { ranked: T[]; topScore: number } {
+  const refTokens = new Set(tokenize(referenceName));
+  if (refTokens.size === 0) return { ranked: candidates, topScore: 0 };
+  const scored = candidates.map((c, i) => {
+    let shared = 0;
+    for (const tok of tokenize(c.name)) if (refTokens.has(tok)) shared++;
+    return { c, i, score: shared };
+  });
+  scored.sort((a, b) => b.score - a.score || a.i - b.i);
+  return { ranked: scored.map((s) => s.c), topScore: scored[0]?.score ?? 0 };
+}
+
 export function normalizeGroup(input: string | undefined): MuscleGroup | null {
   if (!input) return null;
   const q = input.trim().toLowerCase();

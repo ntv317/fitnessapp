@@ -170,6 +170,7 @@
     "createNewExercise": "สร้างท่าใหม่",
     "allGroups": "ทั้งหมด",
     "switchFailed": "ไม่สามารถเปลี่ยนท่าได้ กรุณาลองใหม่",
+    "closestMatch": "ใกล้เคียงที่สุด",
     "progress": "ความก้าวหน้า",
     "progressDescription": "ความก้าวหน้าของคุณตามการเปลี่ยนแปลงน้ำหนักและการทำซ้ำ",
     "estOneRM": "แนวโน้ม 1RM โดยประมาณ — LIFTREPS Pro",
