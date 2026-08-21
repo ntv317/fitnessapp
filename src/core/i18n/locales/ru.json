@@ -180,6 +180,7 @@
     "createNewExercise": "Создать упражнение",
     "allGroups": "Все",
     "switchFailed": "Не удалось сменить упражнение. Попробуйте ещё раз.",
+    "closestMatch": "Ближайшее",
     "progress": "Прогресс",
     "progressDescription": "Ваш прогресс на основе изменений веса и количества повторений",
     "estOneRM": "Тенденция прогнозируемого 1ПМ — LIFTREPS Pro",

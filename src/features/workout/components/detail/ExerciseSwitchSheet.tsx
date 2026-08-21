@@ -25,7 +25,7 @@ import {
   displayName,
 } from '@/features/library/services/ExerciseCatalog';
 import { GROUP_ORDER, groupOf, type MuscleGroup } from '@/features/library/utils/muscleGroups';
-import { normalizeName } from '@/features/import/services/catalogMatch';
+import { normalizeName, rankByNameCloseness } from '@/features/import/services/catalogMatch';
 import type { CatalogExercise } from '@/features/library/types';
 
 type GroupFilter = MuscleGroup | 'All';
@@ -40,6 +40,8 @@ interface ExerciseSwitchSheetProps {
   currentExerciseId: number;
   currentCatalogId: string | null;
   currentMuscleGroup: string | null;
+  /** Current exercise's name; ranks the unsearched list by closeness to it. */
+  currentName: string;
   onSwitch: (exerciseId: number) => void;
 }
 
@@ -62,6 +64,7 @@ export function ExerciseSwitchSheet({
   currentExerciseId,
   currentCatalogId,
   currentMuscleGroup,
+  currentName,
   onSwitch,
 }: ExerciseSwitchSheetProps) {
   const { t } = useTranslation();
@@ -77,7 +80,7 @@ export function ExerciseSwitchSheet({
   const [group, setGroup] = useState<GroupFilter>(initialGroup);
   const [query, setQuery] = useState('');
 
-  const rows = useMemo<Row[]>(() => {
+  const { rows, closestKey } = useMemo<{ rows: Row[]; closestKey: string | null }>(() => {
     const nq = normalizeName(query);
 
     const customRows: Row[] = myExercises
@@ -108,8 +111,18 @@ export function ExerciseSwitchSheet({
       }));
 
     const all = [...customRows, ...catalogRows];
-    if (!nq) return all;
-    return all
+    if (!nq) {
+      // No query: order by name closeness to the current exercise so the most
+      // like-for-like swap floats up, and flag the single closest match. Rank on
+      // canonical names (catalog.name / custom name) so it holds across languages.
+      const canonical = all.map((r) => ({ r, name: r.kind === 'catalog' ? r.catalog.name : r.name }));
+      const { ranked, topScore } = rankByNameCloseness(currentName, canonical);
+      return {
+        rows: ranked.map((x) => x.r),
+        closestKey: topScore > 0 ? ranked[0]?.r.key ?? null : null,
+      };
+    }
+    const sorted = all
       .map((r) => ({
         r,
         score: r.kind === 'catalog'
@@ -118,7 +131,8 @@ export function ExerciseSwitchSheet({
       }))
       .sort((a, b) => b.score - a.score || a.r.name.localeCompare(b.r.name))
       .map((x) => x.r);
-  }, [myExercises, group, query, currentExerciseId, currentCatalogId]);
+    return { rows: sorted, closestKey: null as string | null };
+  }, [myExercises, group, query, currentExerciseId, currentCatalogId, currentName]);
 
   const reset = () => {
     setGroup(initialGroup);
@@ -251,7 +265,13 @@ export function ExerciseSwitchSheet({
                     {item.kind === 'custom' ? ` · ${t('library.myExercise')}` : ''}
                   </AppText>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                {item.key === closestKey ? (
+                  <AppText variant="labelMono" upper color={Colors.primary} style={styles.closestTag}>
+                    {t('workout.closestMatch')}
+                  </AppText>
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                )}
               </TouchableOpacity>
             )}
           />
@@ -319,5 +339,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm + 2,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  closestTag: {
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: Radius.sm,
   },
 });

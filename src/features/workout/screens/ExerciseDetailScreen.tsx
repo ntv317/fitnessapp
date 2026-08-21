@@ -947,6 +947,7 @@ export default function ExerciseDetailScreen() {
         currentMuscleGroup={
           exercise?.muscleGroup ?? (catalogExercise ? groupOf(catalogExercise.primaryMuscles) : null)
         }
+        currentName={exercise?.name ?? ''}
         onSwitch={handleSwitch}
       />
     </SafeAreaView>

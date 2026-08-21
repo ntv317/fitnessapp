@@ -316,6 +316,7 @@
     "createNewExercise": "创建新动作",
     "allGroups": "全部",
     "switchFailed": "无法切换动作，请重试。",
+    "closestMatch": "最接近",
     "progress": "进度",
     "progressDescription": "基于重量和次数变化的进度",
     "estOneRM": "预估单次最大重量趋势 — LIFTREPS Pro",

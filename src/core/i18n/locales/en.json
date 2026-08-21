@@ -316,6 +316,7 @@
     "createNewExercise": "Create new exercise",
     "allGroups": "All",
     "switchFailed": "Could not switch exercise. Please try again.",
+    "closestMatch": "Closest match",
     "progress": "Progress",
     "progressDescription": "Your progress based on weight and rep changes",
     "estOneRM": "Est. 1RM trend — LIFTREPS Pro",
