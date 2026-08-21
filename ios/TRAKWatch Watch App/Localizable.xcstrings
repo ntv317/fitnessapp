@@ -210,6 +210,7 @@
       }
     },
     "COUNT" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ru" : {
           "stringUnit" : {
@@ -726,6 +727,7 @@
       }
     },
     "WEIGHT" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ru" : {
           "stringUnit" : {
